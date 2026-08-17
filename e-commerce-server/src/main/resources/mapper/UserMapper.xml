@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.mitsuha754.ecommerce.mapper.UserMapper">
+
+    <!-- UserMapper.xml -->
+    <update id="deductBalanceWithCheck">
+        UPDATE user u
+        INNER JOIN `order` o ON o.user_name = u.username
+        SET u.balance = u.balance - o.total_amount
+        WHERE u.username = #{userName}
+        AND o.order_no = #{orderNo}
+        AND u.status = 1                    <!-- 用户状态必须正常 -->
+        AND u.balance >= o.total_amount     <!-- 余额必须充足 -->
+    </update>
+
+    <select id="checkUserStatus" resultType="java.lang.Integer">
+        SELECT status
+        FROM user
+        WHERE username=#{userName}
+    </select>
+
+    <select id="getUserBalance" resultType="java.math.BigDecimal">
+        SELECT balance
+        FROM user
+        WHERE username = #{userName}
+    </select>
+
+
+</mapper>

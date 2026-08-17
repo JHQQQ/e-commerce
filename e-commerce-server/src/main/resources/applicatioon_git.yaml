@@ -1,0 +1,96 @@
+# =====================================================================
+# 本地测试配置（含明文密钥，仅限本地开发使用，切勿提交到公开仓库）
+# =====================================================================
+
+server:
+  servlet:
+    context-path: /api
+  port: 8080
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+
+jwt:
+  # 密钥
+#   secret:
+  # access_token 过期时间，单位毫秒，30分钟
+  access-expire: 1800000
+  # refresh_token 过期时间，单位秒，30天
+  refresh-expire: 2592000
+
+spring:
+  datasource:
+    username:
+    password:
+    url: "jdbc:mysql://localhost:3306/ecommerce_dev?useSSL=false&serverTimezone=Asia/Shanghai&connectTimeout=5000&socketTimeout=30000&autoReconnect=true"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 连接超时设为5秒，快速失败，不要等30秒
+      connection-timeout: 5000
+      # 验证连接是否有效
+      connection-test-query: SELECT 1
+      # 验证超时
+      validation-timeout: 3000
+      # 最大生命周期
+      max-lifetime: 600000
+      # 保持连接活跃
+      keepalive-time: 60000
+  data:
+    redis:
+      # Redis服务器地址
+      host: localhost
+      # Redis服务器端口
+      port: 6379
+      # 密码
+      password:
+      # 选择哪个数据库（0-15）
+      database: 1
+      # 连接超时时间（毫秒）
+      timeout: 10000ms
+      # Lettuce连接池配置
+      lettuce:
+        pool:
+          # 最大活跃连接数
+          max-active: 32
+          # 最大空闲连接数
+          max-idle: 16
+          # 最小空闲连接数
+          min-idle: 8
+          # 连接等待超时时间（毫秒）
+          max-wait: 3000ms
+  ai:
+    deepseek:
+      api-key:
+      chat:
+        options:
+          max-tokens: 10000
+          temperature: 0.4
+        base-url: https://api.deepseek.com/
+
+cors:
+  # 允许跨域的前端源，多个用逗号分隔。
+  # 生产环境用环境变量 CORS_ALLOWED_ORIGINS 覆盖为实际前端域名：
+  #   shop.mitsuha754.xyz
+  # 也可设为 * 允许所有来源（此时自动关闭凭证携带，注意安全）。
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://shop.mitsuha754.xyz}
+  # 是否允许携带凭证（cookie、认证头）。设为 * 时此配置自动失效（强制 false）。
+  allow-credentials: true
+
+logging:
+  charset:
+    console: UTF-8
+  level:
+    root: info
+    org.springframework.web: debug
+    org.springframework.web.servlet.mvc.method.annotation: trace
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger : %msg%n"
+
+aliyun:
+  oss:
+    accessKeyId:
+    accessKeySecret:
+    endpoint:
+    bucketName:
+    # 访问域名（拼接文件URL用）
+    urlPrefix:

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mitsuha754.ecommerce.mapper.CartMapper">
+
+    <resultMap id="CartMap" type="com.mitsuha754.ecommerce.vo.CartVO">
+        <result column="username" property="userName" />
+        <result column="quantity" property="quantity"/>
+        <result column="product_id" property="productId"/>
+    </resultMap>
+
+
+    <insert id="addCart">
+        INSERT INTO cart(username, product_id, quantity, status)
+        VALUES (#{Cart.userName}, #{Cart.productId}, #{Cart.quantity}, 1)
+
+        <!-- 关键：如果用户名+商品ID重复 → 数量相加 -->
+        ON DUPLICATE KEY UPDATE
+        quantity = quantity + VALUES(quantity),
+        status = 1
+    </insert>
+
+    <update id="updateCart">
+        UPDATE cart
+        SET status = 0,
+            quantity = 0,
+            update_time = NOW()
+        WHERE product_id = #{id}
+          AND username = #{userName}
+    </update>
+
+    <update id="deleteCart">
+        UPDATE cart
+        SET status = 0,
+            quantity = 0,
+            update_time = NOW()
+        WHERE username = #{userName}
+    </update>
+
+    <select id="getCarts" resultType="com.mitsuha754.ecommerce.vo.CartVO">
+        SELECT
+        c.username,
+        c.product_id AS productId,
+        c.quantity,
+        c.status,
+
+        p.image AS productImage,
+        p.price AS price,
+        p.name AS productName,
+        p.price * c.quantity AS totalPrice
+
+        FROM cart c
+        INNER JOIN product p
+        ON c.product_id = p.id
+        WHERE c.username = #{userName}
+    </select>
+
+</mapper >

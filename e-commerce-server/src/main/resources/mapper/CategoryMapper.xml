@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.mitsuha754.ecommerce.mapper.CategoryMapper">
+
+    <!-- 正确的 ResultMap：只有 id 是 id，其他都是 result -->
+    <resultMap id="CategoryMap" type="com.mitsuha754.ecommerce.entity.Category">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+    <insert id="addCategory">
+        INSERT INTO category
+            (name, description,create_time)
+        VALUES (
+            #{Category.name},
+            #{Category.description},
+            NOW()
+               )
+    </insert>
+
+    <update id="deleteCategoryById">
+        UPDATE category
+            SET status = 0
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateCategory">
+        UPDATE category
+        set
+            name = #{Category.name},
+            description = #{Category.description},
+            status = #{Category.status}
+        WHERE id = #{Category.id}
+    </update>
+
+    <!-- 查询全部分类：正确 -->
+    <select id="getCategoryList" resultMap="CategoryMap">
+        SELECT * FROM category
+        WHERE status = 1
+    </select>
+
+    <select id="selectCategoryNameById" resultType="java.lang.String">
+        SELECT name FROM category WHERE id=#{id}
+    </select>
+
+</mapper>

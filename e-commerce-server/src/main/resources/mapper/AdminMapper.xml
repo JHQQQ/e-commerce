@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.mitsuha754.ecommerce.mapper.AdminMapper">
+
+    <resultMap id="UserResultMap" type="com.mitsuha754.ecommerce.vo.UserQueryVO">
+        <id column="id" property="id"/>
+        <result column="username" property="userName"/>
+        <result column="name" property="name"/>
+        <result column="phone" property="phone"/>
+        <result column="email" property="email"/>
+        <result column="balance" property="balance"/>
+        <result column="status" property="status"/>
+        <result column="register_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <!-- 查询所有普通用户（排除管理员）-->
+    <select id="getAllUser" resultMap="UserResultMap">
+        SELECT
+            id,
+            username,
+            name,
+            phone,
+            email,
+            balance,
+            status,
+            register_time,
+            update_time
+        FROM user
+        WHERE role != 'ADMIN'
+    </select>
+
+    <select id="showAllOrders" resultType="com.mitsuha754.ecommerce.vo.AdminOrderListVO">
+        SELECT order_no AS orderNo,
+               user_name AS userName,
+               total_amount AS totalPrice,
+               status AS orderStatus,
+               remark AS remark,
+               create_time AS createTime
+        FROM `order`
+        WHERE status IN (1, 2)
+    </select>
+
+    <!-- 修改用户状态 + 余额（给前端修改用）-->
+    <update id="updateUserInfo">
+        UPDATE user
+        SET
+            balance = #{balance},
+            status = #{status},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 修改用户状态 -->
+    <update id="updateUserStatus">
+        update user
+        set
+            status = #{status},
+            update_time = NOW()
+        where id = #{id}
+    </update>
+
+    <update id="updateUserBalance">
+        update user
+        set
+            balance = #{balance},
+            update_time = NOW()
+        where id = #{id}
+    </update>
+
+</mapper>

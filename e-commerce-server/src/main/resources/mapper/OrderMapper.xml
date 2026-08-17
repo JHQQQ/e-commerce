@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.mitsuha754.ecommerce.mapper.OrderMapper">
+    <insert id="generateOrder">
+        INSERT INTO `order` (
+            order_no,
+            user_name,
+            total_amount,
+            pay_amount,
+            status,
+            address,
+            remark,
+            create_time,
+            update_time
+        )
+        VALUES (
+                   #{Order.orderNo},
+                   #{Order.userName},
+                   #{Order.totalAmount},
+                   #{Order.payAmount},
+                   #{Order.status},
+                   #{Order.address},
+                   #{Order.remark},
+                   NOW(),
+                   NOW()
+               )
+    </insert>
+
+    <update id="updateOrderStatus">
+        UPDATE `order`
+
+        SET
+        status = #{status},
+        pay_time =
+        <if test="status == 1">NOW()</if>
+        <if test="status != 1">pay_time</if>,
+        deliver_time =
+        <if test="status == 2">NOW()</if>
+        <if test="status != 2">deliver_time</if>,
+        finish_time =
+        <if test="status == 3 or status == 4">NOW()</if>
+        <if test="status != 3 and status != 4">finish_time</if>,
+        update_time = NOW()
+
+        WHERE order_no = #{orderNo}
+
+    </update>
+
+    <update id="deductStockWithCheck">
+        UPDATE product p
+        INNER JOIN order_item oi ON p.id = oi.product_id
+        SET p.stock = p.stock - oi.quantity
+        WHERE oi.order_no = #{orderNo}
+          AND p.stock >= oi.quantity          <!-- 库存必须充足 -->
+    </update>
+
+    <!-- 校验订单所有明细库存是否充足；返回不足的商品名列表 -->
+    <select id="checkAllStock" resultType="java.lang.String">
+        SELECT p.name
+        FROM order_item oi
+        INNER JOIN product p ON p.id = oi.product_id
+        WHERE oi.order_no = #{orderNo}
+          AND p.stock &lt; oi.quantity
+    </select>
+
+    <update id="recoverStock">
+        UPDATE product p
+            JOIN order_item oi ON p.id = oi.product_id
+        SET p.stock = p.stock + oi.quantity
+        WHERE oi.order_no = #{orderNo};
+    </update>
+
+    <update id="reconvertBalance">
+        UPDATE user u
+            JOIN `order` o ON u.username = o.user_name
+        SET u.balance = u.balance + o.pay_amount
+        WHERE o.order_no = #{orderNo};
+    </update>
+
+    <update id="receiveOrder">
+        UPDATE `order`
+        SET status=3
+        WHERE order_no = #{orderNo}
+    </update>
+
+    <select id="getOrderConfirm" resultType="com.mitsuha754.ecommerce.vo.OrderConfirmVO">
+        SELECT
+            c.product_id AS productId,
+            p.name AS productName,
+            p.image AS image,
+            p.price AS price,
+            c.quantity AS quantity,
+            c.quantity * p.price AS totalPrice
+        FROM cart c
+        INNER JOIN product p
+        ON c.product_id = p.id
+        WHERE c.username = #{userName} AND c.status=1 AND p.status=1
+    </select>
+
+    <select id="getOrders" resultType="com.mitsuha754.ecommerce.entity.Order">
+        SELECT
+            order_no AS orderNo,
+            total_amount AS totalAmount,
+            status,
+            create_time AS createTime
+        FROM `order`
+        WHERE user_name = #{userName}
+        ORDER BY create_time DESC, id DESC
+
+    </select>
+
+    <select id="checkOrderStatus" resultType="java.lang.Boolean">
+        SELECT COUNT(*) = 1
+        FROM `order`
+        WHERE order_no = #{orderNo} AND status = 1
+    </select>
+
+
+    <select id="orderStatus" resultType="java.lang.Integer">
+        SELECT status
+        FROM `order`
+        WHERE order_no=#{orderNo}
+    </select>
+
+    <select id="listPendingPayOrderNos" resultType="java.lang.String">
+        SELECT order_no
+        FROM `order`
+        WHERE status = 0
+    </select>
+
+    <select id="selectUserName" resultType="java.lang.String">
+        SELECT user_name
+        FROM `order`
+        WHERE order_no=#{orderNo}
+    </select>
+
+    <select id="checkReceiveable" resultType="java.lang.Boolean">
+        SELECT COUNT(*) = 1
+        FROM `order`
+        WHERE order_no=#{userPayDTO.orderNo} AND status = 2 AND user_name=#{userPayDTO.userName}
+    </select>
+
+</mapper>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.mitsuha754.ecommerce.mapper.ProductMapper">
+
+    <resultMap id="BaseResultMap" type="com.mitsuha754.ecommerce.entity.Product">
+        <id column="id" property="id"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="name" property="name"/>
+        <result column="price" property="price"/>
+        <result column="stock" property="stock"/>
+        <result column="image" property="image"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="shelve_time" property="shelveTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <resultMap id="VOMapper" type="com.mitsuha754.ecommerce.vo.ProductVO">
+        <result column="category_id" property="categoryId"/>
+        <result column="image" property="image"/>
+        <result column="name" property="name"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="price" property="price"/>
+        <result column="stock" property="stock"/>
+        <result column="description" property="description"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMNS">
+                id, category_id, name, price, stock, image,
+                description, status, shelve_time, create_time, update_time
+    </sql>
+
+    <insert id="addProduct">
+        INSERT INTO product
+        (<include refid="BASE_COLUMNS"/>)
+        VALUES
+        (
+        NULL,   <!-- id 自增，传 NULL 即可 -->
+        #{Product.categoryId},
+        #{Product.name},
+        #{Product.price},
+        #{Product.stock},
+        #{Product.image},
+        #{Product.description},
+        #{Product.status},
+        NOW(),  <!-- 上架时间 -->
+        NOW(),  <!-- 创建时间 -->
+        NOW()   <!-- 更新时间 -->
+        )
+    </insert>
+
+
+    <!-- 分页查询 -->
+    <select id="selectProductPage" resultMap="BaseResultMap">
+        SELECT <include refid="BASE_COLUMNS"/>
+        FROM product
+        <where>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+            <if test="query.categoryId != null">
+                AND category_id = #{query.categoryId}
+            </if>
+
+        </where>
+        ORDER BY create_time DESC
+        <if test="query.page != null and query.size != null">
+            LIMIT #{query.page}, #{query.size}
+        </if>
+    </select>
+
+    <!-- 查询总数 -->
+    <select id="selectProductCount" resultType="long">
+        SELECT COUNT(*)
+        FROM product
+        <where>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+            <if test="query.categoryId != null">
+                AND category_id = #{query.categoryId}
+            </if>
+            AND status = 1
+        </where>
+    </select>
+
+    <select id="selectProductByCategoryId" resultMap="BaseResultMap">
+        SELECT <include refid="BASE_COLUMNS"/>
+        FROM product
+        WHERE category_id = #{id} and status != 0
+    </select>
+
+    <select id="selectProductVOById" resultMap="VOMapper" >
+        SELECT
+            product.id   AS id,
+            product.name AS name,
+            product.category_id AS category_id,
+            c.name AS category_name,
+            product.price AS price,
+            product.stock AS stock,
+            product.description AS description,
+            product.image AS image
+        FROM product
+        JOIN category c ON product.category_id = c.id
+        WHERE product.id = #{id}
+    </select>
+
+    <update id="editProduct">
+        UPDATE product
+        <set>
+            <if test="Product.name != null and Product.name != ''">
+                name = #{Product.name},
+            </if>               
+            <if test="Product.price != null">
+                price = #{Product.price},
+            </if>
+            <if test="Product.stock != null">
+                stock = #{Product.stock},
+            </if>
+            <if test="Product.status != null">
+                status = #{Product.status},
+            </if>
+            <if test="Product.image != null and Product.image != ''">
+                image = #{Product.image},
+            </if>
+            <if test="Product.categoryId != null">
+                category_id = #{Product.categoryId},
+            </if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{Product.id}
+    </update>
+
+</mapper>
