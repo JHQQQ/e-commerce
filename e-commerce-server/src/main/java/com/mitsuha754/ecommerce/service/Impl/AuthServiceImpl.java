@@ -125,6 +125,7 @@ public class AuthServiceImpl implements AuthService {
                     lockUser(key, lockSec);
                 }
             }
+            //生成图形验证码
         } catch (Exception e) {
             log.error("记录登录失败次数异常", e);
         }
