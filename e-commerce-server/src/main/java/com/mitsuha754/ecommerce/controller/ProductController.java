@@ -22,7 +22,7 @@ public class ProductController {
 
 
     @GetMapping("/list")
-        public R<PageResult<Product>> getProductList(ProductQueryDTO productQueryDTO) {
+    public R<PageResult<Product>> getProductList(ProductQueryDTO productQueryDTO) {
         PageResult<Product> list = productService.getProductPage(productQueryDTO);
         return R.ok(list);
     }
@@ -33,7 +33,6 @@ public class ProductController {
     public R<ProductVO> detailProduct(@RequestBody Map<String, Long> ids) {
         Long id =  ids.get("id");
         ProductVO productVO = productService.selectProductVOById(id);
-
         return R.ok(productVO);
 
     }

@@ -13,10 +13,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Objects;
 
 
@@ -109,6 +108,10 @@ public class AuthController {
             CookieUtils.removeCookie(response, "refresh_token", https);
         }
         return R.ok("退出成功");
+    }
 
+    @GetMapping("/getCaptchaCode")
+    public R<Map<String,String>> getCode(){
+        return R.ok(authService.getCode());
     }
 }

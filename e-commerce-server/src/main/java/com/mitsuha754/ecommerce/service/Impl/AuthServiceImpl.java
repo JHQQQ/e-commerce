@@ -1,5 +1,8 @@
 package com.mitsuha754.ecommerce.service.Impl;
 
+import cn.hutool.core.codec.Base64;
+import cn.hutool.core.io.FastByteArrayOutputStream;
+import cn.hutool.core.util.IdUtil;
 import com.mitsuha754.ecommerce.dto.LoginDTO;
 import com.mitsuha754.ecommerce.exception.BusinessException;
 
@@ -14,14 +17,19 @@ import com.mitsuha754.ecommerce.util.RegisterValidatorUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
+import cn.hutool.captcha.*;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -42,14 +50,11 @@ public class AuthServiceImpl implements AuthService {
     private static final String LOGIN_LOCK_KEY = "login:lock:";
     private static final int MAX_FAIL_TIMES = 5;           // 累计失败次数阈值（达到后开始锁定）
     private static final long FAIL_EXPIRE_SEC = 600;       // 失败计数窗口：10 分钟（之后失败计数清零）
-    // 动态锁定时间档位：第 5 次锁 1 分钟，第 6 次锁 5 分钟，第 7 次锁 15 分钟，第 8 次起锁 30 分钟
+    // 动态锁定时间档位：第 5 次锁 1 分钟
     // 下标即"失败次数"，超过末尾档用最后一档
     private static final long[] LOCK_TIERS_SEC = {
             0L, 0L, 0L, 0L, 0L,   // 失败 1~4 次：不锁定
             60L,                  // 失败 5 次：锁 1 分钟
-            300L,                 // 失败 6 次：锁 5 分钟
-            900L,                 // 失败 7 次：锁 15 分钟
-            1800L                 // 失败 8 次及以上：锁 30 分钟
     };
 
     /**
@@ -116,7 +121,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             Long count = redisTemplate.opsForValue().increment(LOGIN_FAIL_KEY + key);
             // 首次设置过期时间（失败计数窗口）
-            if (count != null && count == 1) {
+                if (count != null && count == 1) {
                 redisTemplate.expire(LOGIN_FAIL_KEY + key, FAIL_EXPIRE_SEC, TimeUnit.SECONDS);
             }
             if (count != null && count >= MAX_FAIL_TIMES) {
@@ -125,7 +130,6 @@ public class AuthServiceImpl implements AuthService {
                     lockUser(key, lockSec);
                 }
             }
-            //生成图形验证码
         } catch (Exception e) {
             log.error("记录登录失败次数异常", e);
         }
@@ -154,36 +158,106 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * 验证码校验
+     * @param key 用户名,用于查登录失败次数
+     * @param verify 验证码UUID
+     * @param code 验证码
+     */
+    private void checkLoginCaptcha(String key, String verify, String code){
+        try {
+            //根据尝试失败次数,判断是否需要校验登录验证码
+            if(getFailCount(key) > 0){
+                if (!StringUtils.hasText(verify) || !StringUtils.hasText(code)){
+                    throw new BusinessException("验证码传参异常");
+                }
+                //验证码错误,先删除这个验证码再提示,生成新的验证码
+                Object val = redisTemplate.opsForValue().get(verify);
+                if (val == null){
+                    throw new BusinessException("验证码已过期");
+                }
+                if (!Objects.equals(val.toString(), code))
+                {
+                    redisTemplate.delete(verify);
+                    throw new BusinessException("验证码错误");
+                }
+            }
+        }catch (BusinessException e){
+            //抛出错误信息
+            throw new BusinessException(e.getMessage());
+        }
+        catch(Exception e){
+            log.error("出现系统异常", e);
+            throw new BusinessException("未知异常,请稍后再试");
+        }
+    }
+
+    private void checkRegisterCaptcha(String verify, String code){
+        try {
+            Object val = redisTemplate.opsForValue().get(verify);
+            //验证码过期
+            if (val == null){
+                throw new BusinessException("验证码已过期");
+            }
+            //注册必须校验验证码
+            if (!StringUtils.hasText(verify) || !StringUtils.hasText(code)){
+                throw new BusinessException("验证码传参异常!");
+            }
+            //验证码错误
+            if (!Objects.equals(val.toString(), code))
+            {
+                redisTemplate.delete(verify);
+                throw new BusinessException("验证码错误");
+            }
+        }catch (BusinessException e){
+            throw new BusinessException(e.getMessage());
+        }catch (Exception e){
+            throw new BusinessException("未知异常,请稍后再试");
+        }
+
+    }
+
     @Override
     public UserVO login(LoginDTO loginDTO) {
         String userName = loginDTO.getUserName();
-        // 1. 限流：检查是否已锁定 / 是否已达失败阈值
+
+        // 限流：检查是否已锁定 或 是否已达失败阈值
         checkLocked(userName);
+
+        //校验验证码
+        checkLoginCaptcha(userName, loginDTO.getVerify(), loginDTO.getLoginCaptcha());
 
         //  根据用户名查用户
         User user = authMapper.login(userName);
 
-        //  用户不存在
-        if (user == null) {
-            recordFail(userName);
-            throw new BusinessException("用户名或密码错误");
-        }
+        //登录失败的情况
+        try {
+            //  1.用户不存在
+            if (user == null) {
+                throw new BusinessException("用户名或密码错误");
+            }
 
-        //  判断账号状态
-        if (user.getStatus() == 0) {
-            recordFail(userName);
-            throw new BusinessException("账号已禁用，请联系管理员");
-        }
-        if (user.getStatus() == 2) {
-            recordFail(userName);
-            throw new BusinessException("账号状态异常，请联系管理员");
-        }
+            //  2.账号状态异常
+            if (user.getStatus() == 0) {
+                throw new BusinessException("账号已禁用，请联系管理员");
+            }
+            if (user.getStatus() == 2) {
+                throw new BusinessException("账号状态异常，请联系管理员");
+            }
 
-        //  校验密码（BCrypt）
-        boolean passOk = BCrypt.checkpw(loginDTO.getPassword(), user.getPassword());
-        if (!passOk) {
+            //  3.密码错误（BCrypt）
+            boolean passOk = BCrypt.checkpw(loginDTO.getPassword(), user.getPassword());
+            if (!passOk) {
+                throw new BusinessException("用户名或密码错误");
+            }
+            //根据不同异常打印信息,重置验证码
+        }catch (BusinessException e){
             recordFail(userName);
-            throw new BusinessException("用户名或密码错误");
+            redisTemplate.delete(loginDTO.getVerify());
+            throw new BusinessException(e.getMessage());
+
+        }catch (Exception e){
+            throw new BusinessException("系统异常,请稍后再试");
         }
 
         // 登录成功，清空限流计数
@@ -224,7 +298,7 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         log.info("{}登录, 身份:{}", userVO.getUserName(),userVO.getRole());
-
+        redisTemplate.delete(loginDTO.getVerify());
         return userVO;
     }
 
@@ -232,14 +306,22 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void register(RegisterDTO registerDTO) {
-        RegisterValidatorUtil.validate(registerDTO);        //校验表单
-        boolean exists = authMapper.checkUsername(registerDTO.getUserName());   //判断用户名是否存在
+        //校验注册表单
+        RegisterValidatorUtil.validate(registerDTO);
+
+        //校验验证码
+        checkRegisterCaptcha(registerDTO.getVerify(), registerDTO.getRegisterCaptcha());
+
+        //判断用户名是否存在
+        boolean exists = authMapper.checkUsername(registerDTO.getUserName());
         if(exists){
             throw new BusinessException("用户名已存在");
         }
+        //生成加密密码存入数据库,删除Redis的验证码
         String flag = BCrypt.hashpw(registerDTO.getPassword(), BCrypt.gensalt());    //加密存到数据库
         authMapper.register(registerDTO.getUserName(), flag);
         log.info("{}注册", registerDTO.getUserName());
+        redisTemplate.delete(registerDTO.getVerify());
     }
 
     @Override
@@ -277,6 +359,29 @@ public class AuthServiceImpl implements AuthService {
             // Redis 不可用时，退出登录不阻断（cookie 仍会被清除）
             log.error("退出登录删除Redis token失败", e);
         }
+    }
+
+    @Override
+    public Map<String, String> getCode() {
+        LineCaptcha lineCaptcha = CaptchaUtil.
+                createLineCaptcha(200, 50, 4, 10);
+        //存储在Redis的ID
+        String verify = IdUtil.simpleUUID();
+        //验证码
+        String code = lineCaptcha.getCode();
+        //验证码图片流
+        FastByteArrayOutputStream os = new FastByteArrayOutputStream();
+        lineCaptcha.write(os);
+        //Redis存入验证码KEY:验证码uuid VALUE:验证码
+        redisTemplate.opsForValue().set(verify, code, Duration.ofMinutes(1));
+
+        ConcurrentHashMap<String, String> map = new ConcurrentHashMap<>(5);
+
+        map.put("verify",verify);
+
+        map.put("img", Base64.encode(os.toByteArray()));
+
+        return map;
     }
 
 }

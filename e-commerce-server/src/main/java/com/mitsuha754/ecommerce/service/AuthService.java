@@ -4,6 +4,8 @@ import com.mitsuha754.ecommerce.dto.LoginDTO;
 import com.mitsuha754.ecommerce.dto.RegisterDTO;
 import com.mitsuha754.ecommerce.vo.UserVO;
 
+import java.util.Map;
+
 public interface AuthService {
 
     /**
@@ -29,4 +31,8 @@ public interface AuthService {
      */
     void logout(String refreshToken);
 
+    /**
+     * 生成验证码
+     */
+    Map<String, String> getCode();
 }

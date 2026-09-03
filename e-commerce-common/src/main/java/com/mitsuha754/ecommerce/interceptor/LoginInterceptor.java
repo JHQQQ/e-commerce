@@ -53,7 +53,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         if (uri.equals("/") || uri.startsWith("/api/product/detail") || uri.startsWith("/api/product/list")
-                || uri.startsWith("/api/category/list") || uri.startsWith("/api/refresh")) {
+                || uri.startsWith("/api/category/list") || uri.startsWith("/api/refresh") || uri.startsWith("/api/getCaptchaCode")) {
             // 首页 / 商品列表 / 商品详情 / 商品分类 → 游客直接放行
             return true;
         }

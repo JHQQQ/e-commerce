@@ -23,4 +23,14 @@ public class LoginDTO {
      */
     private Boolean isRemember;
 
+    /**
+     * 验证码UUID
+     */
+    private String verify;
+
+    /**
+     * 验证码
+     */
+    private String loginCaptcha ;
+
 }
