@@ -17,6 +17,14 @@ public class RegisterDTO {
      */
     private String name;
     /**
+     * 验证码UUID
+     */
+    private String verify;
+    /**
+     * 验证码
+     */
+    private String registerCaptcha ;
+    /**
      * 电话号码
      */
     private String phoneNumber;
@@ -24,6 +32,4 @@ public class RegisterDTO {
      * 邮箱
      */
     private String email;
-
-
 }
