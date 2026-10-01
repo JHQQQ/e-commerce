@@ -107,8 +107,16 @@
             create_time AS createTime
         FROM `order`
         WHERE user_name = #{userName}
-        ORDER BY create_time DESC, id DESC
+        ORDER BY id DESC
 
+    </select>
+
+    <select id="getOrderIds" resultType="java.lang.String">
+        SELECT
+            order_no
+        FROM `order`
+        WHERE user_name = #{userName}
+        ORDER BY id DESC
     </select>
 
     <select id="checkOrderStatus" resultType="java.lang.Boolean">
@@ -136,10 +144,11 @@
         WHERE order_no=#{orderNo}
     </select>
 
-    <select id="checkReceiveable" resultType="java.lang.Boolean">
+    <select id="checkReceivable" resultType="java.lang.Boolean">
         SELECT COUNT(*) = 1
         FROM `order`
         WHERE order_no=#{userPayDTO.orderNo} AND status = 2 AND user_name=#{userPayDTO.userName}
     </select>
+
 
 </mapper>

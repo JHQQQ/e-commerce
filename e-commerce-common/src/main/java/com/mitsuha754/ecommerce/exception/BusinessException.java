@@ -1,5 +1,6 @@
 package com.mitsuha754.ecommerce.exception;
 
+import com.mitsuha754.ecommerce.enums.ResultCodeEnum;
 import lombok.Getter;
 
 /**
@@ -12,12 +13,13 @@ public class BusinessException extends RuntimeException {
 
     public BusinessException(String message) {
         super(message);
-        this.code = 400; // 默认400
+        this.code = ResultCodeEnum.FAIL.getCode(); // 默认400
     }
 
     public BusinessException(Integer code, String message) {
         super(message);
         this.code = code;
     }
+
 
 }

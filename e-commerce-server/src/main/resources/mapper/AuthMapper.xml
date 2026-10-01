@@ -26,4 +26,6 @@
         VALUES (#{userName}, #{password})
     </insert>
 
+
+
 </mapper>

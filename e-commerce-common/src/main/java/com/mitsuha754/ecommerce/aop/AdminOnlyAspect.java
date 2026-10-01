@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mitsuha754.ecommerce.interceptor.LoginInterceptor;
 
 import com.mitsuha754.ecommerce.result.R;
-import com.mitsuha754.ecommerce.vo.UserVO;
+import com.mitsuha754.ecommerce.vo.UserLoginVO;
 import jakarta.servlet.http.HttpServletResponse;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -38,14 +38,14 @@ public class AdminOnlyAspect {
         HttpServletResponse response = attributes != null ? attributes.getResponse() : null;
 
         // 未登录（拦截器已校验，但此处做兜底，避免 NPE）
-        UserVO userVO = LoginInterceptor.USER.get();
-        if (userVO == null) {
+        UserLoginVO userLoginVO = LoginInterceptor.USER.get();
+        if (userLoginVO == null) {
             writeError(response, 401, "未登录或登录已过期");
             return null;
         }
 
         // 非管理员 → 403
-        if (!"ADMIN".equals(userVO.getRole())) {
+        if (!"ADMIN".equals(userLoginVO.getRole())) {
             writeError(response, 403, "无权限访问");
             return null;
         }

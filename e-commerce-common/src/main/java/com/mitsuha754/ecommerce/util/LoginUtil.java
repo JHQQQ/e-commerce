@@ -27,7 +27,7 @@ public class LoginUtil {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    // 生成 token
+    // 生成 accessToken
     public  String createToken(Map<String, Object> claims) {
         return Jwts.builder()
                 .setClaims(claims)
@@ -36,7 +36,7 @@ public class LoginUtil {
                 .compact();
     }
 
-    // 解析 token
+    // 解析 accessToken
     public  Claims parseToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getKey())
@@ -44,7 +44,7 @@ public class LoginUtil {
                 .parseClaimsJws(token)
                 .getBody();
     }
-
+    // 生成 refreshToken
     public  String generateRefreshToken(){
         UUID uuid = UUID.randomUUID();
         return uuid

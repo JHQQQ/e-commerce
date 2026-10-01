@@ -70,4 +70,12 @@
         where id = #{id}
     </update>
 
+    <update id="confirmMerchant">
+     update merchant
+     set
+         status = 1
+     where user_id = #{id}
+    </update>
+
+
 </mapper>

@@ -1,20 +1,29 @@
 package com.mitsuha754.ecommerce.interceptor;
 
 
+import cn.hutool.jwt.JWTException;
+import com.mitsuha754.ecommerce.enums.ResultCodeEnum;
 import com.mitsuha754.ecommerce.exception.BusinessException;
+import com.mitsuha754.ecommerce.result.R;
+import com.mitsuha754.ecommerce.util.CookieUtils;
 import com.mitsuha754.ecommerce.util.LoginUtil;
-import com.mitsuha754.ecommerce.vo.UserVO;
+import com.mitsuha754.ecommerce.vo.UserLoginVO;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.Getter;
 import org.jspecify.annotations.NonNull;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import io.jsonwebtoken.Claims;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
@@ -23,16 +32,16 @@ public class LoginInterceptor implements HandlerInterceptor {
     private LoginUtil loginUtil;
 
     @Getter
-    public static ThreadLocal<UserVO> USER = new ThreadLocal<>();
+    public static ThreadLocal<UserLoginVO> USER = new ThreadLocal<>();
 
     /**
-     * 获取当前登录用户（供 Controller 使用）。
+     * 获取当前登录用户
      * 未登录时抛出 401 业务异常，避免各接口信任前端传入的 userName 造成越权。
      */
-    public static UserVO requireCurrentUser() {
-        UserVO user = USER.get();
+    public static UserLoginVO requireCurrentUser() {
+        UserLoginVO user = USER.get();
         if (user == null) {
-            throw new BusinessException(401, "未登录或登录已过期");
+            throw new BusinessException(ResultCodeEnum.UNAUTHORIZED.getCode(), ResultCodeEnum.UNAUTHORIZED.getMessage());
         }
         return user;
     }
@@ -48,7 +57,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         // 跨域预检请求（OPTIONS）直接放行：浏览器先发 OPTIONS，不能带业务 token
         // 否则跨域请求会被拦截返回 401，导致前端请求失败
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            response.setStatus(200);
+            response.setStatus(ResultCodeEnum.SUCCESS.getCode());
             return true;
         }
 
@@ -58,28 +67,25 @@ public class LoginInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 1. 从请求头获取 accessToken
+        //  从请求头获取 accessToken
         String accessToken = request.getHeader("accessToken");
 
-        // 2. 没有 accessToken → 401 未登录
-        if (accessToken == null || accessToken.trim().isEmpty()) {
-            response.setStatus(401);
-            return false;
-        }
-
         try {
-            // 3. 解析 accessToken
+            //  解析 accessToken
             Claims claims = loginUtil.parseToken(accessToken);
 
-            UserVO user = new UserVO();
+            UserLoginVO user = new UserLoginVO();
             user.setUserName(claims.get("userName", String.class));
             user.setRole(claims.get("role", String.class));
 
             USER.set(user);
 
-        } catch (Exception e) {
+        }catch (ExpiredJwtException e){
+            return false;
+        }
+        catch (Exception e) {
             //accessToken出现异常
-            response.setStatus(401);
+            response.setStatus(ResultCodeEnum.UNAUTHORIZED.getCode());
             return false;
         }
 

@@ -1,6 +1,8 @@
 package com.mitsuha754.ecommerce.result;
 
+import com.mitsuha754.ecommerce.enums.ResultCodeEnum;
 import lombok.Data;
+
 
 /**
  * 全局统一返回结果
@@ -10,7 +12,7 @@ import lombok.Data;
 public class R<T> {
     // 业务状态：true=成功，false=失败
     private boolean success;
-    // 状态码：200=成功，400=参数错误，401=未授权，500=系统错误
+    // 状态码 详情看枚举类
     private Integer code;
     // 提示信息
     private String msg;
@@ -24,7 +26,7 @@ public class R<T> {
     public static <T> R<T> ok() {
         R<T> r = new R<>();
         r.setSuccess(true);
-        r.setCode(200);
+        r.setCode(ResultCodeEnum.SUCCESS.getCode());
         r.setMsg("操作成功");
         return r;
     }
@@ -33,19 +35,9 @@ public class R<T> {
     public static <T> R<T> ok(T data) {
         R<T> r = new R<>();
         r.setSuccess(true);
-        r.setCode(200);
+        r.setCode(ResultCodeEnum.SUCCESS.getCode());
         r.setMsg("操作成功");
         r.setData(data);
-        return r;
-    }
-
-
-    // 快速返回失败结果（带提示）
-    public static <T> R<T> error(String msg) {
-        R<T> r = new R<>();
-        r.setSuccess(false);
-        r.setCode(400);
-        r.setMsg(msg);
         return r;
     }
 

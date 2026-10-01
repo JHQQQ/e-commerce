@@ -123,3 +123,14 @@ create index idx_role
 create index idx_username
     on user (username);
 
+create table merchant
+(
+    id          bigint auto_increment
+        primary key,
+    user_id     bigint                             not null,
+    shop_name   varchar(20)                        null comment '店铺名称',
+    create_date int      default (now())           null,
+    update_time datetime default CURRENT_TIMESTAMP not null comment '更新时间'
+)
+    comment '商家表';
+

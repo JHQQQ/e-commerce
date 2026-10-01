@@ -2,19 +2,23 @@ package com.mitsuha754.ecommerce.service.Impl;
 
 import com.mitsuha754.ecommerce.enums.OrderStatusEnum;
 import com.mitsuha754.ecommerce.entity.OrderItem;
-import com.mitsuha754.ecommerce.mapper.AdminMapper;
-import com.mitsuha754.ecommerce.mapper.OrderItemMapper;
-import com.mitsuha754.ecommerce.mapper.OrderMapper;
+import com.mitsuha754.ecommerce.exception.BusinessException;
+import com.mitsuha754.ecommerce.mapper.*;
 import com.mitsuha754.ecommerce.util.RedisOrderUtil;
 import com.mitsuha754.ecommerce.vo.AdminOrderListVO;
 import com.mitsuha754.ecommerce.vo.UserQueryVO;
 import com.mitsuha754.ecommerce.service.AdminService;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,7 +27,7 @@ import java.util.Objects;
 public class AdminServiceImpl implements AdminService {
 
     @Resource
-    AdminMapper adminMapper;
+    private AdminMapper adminMapper;
 
     @Resource
     private OrderMapper orderMapper;
@@ -32,7 +36,12 @@ public class AdminServiceImpl implements AdminService {
     private OrderItemMapper orderItemMapper;
 
     @Resource
+    private MerchantMapper merchantMapper;
+
+    @Resource
     private RedisOrderUtil redisOrderUtil;
+
+
 
     @Override
     public List<UserQueryVO> getAllUsers() {
@@ -77,7 +86,17 @@ public class AdminServiceImpl implements AdminService {
             orderMapper.reconvertBalance(orderNo);
         }
         orderMapper.updateOrderStatus(orderNo, OrderStatusEnum.CANCELED.getCode());
-        redisOrderUtil.deleteTempOrder(orderNo);
+
+           redisOrderUtil.deleteTempOrder(orderNo);
         log.info("管理员取消订单:{}", orderNo);
+    }
+
+    @Override
+    public void confirmMerchant(@NotNull BigInteger userId){
+        try {
+            adminMapper.confirmMerchant(userId);
+        }catch (Exception e){
+            throw new BusinessException("出现异常");
+        }
     }
 }

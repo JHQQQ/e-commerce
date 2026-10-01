@@ -8,10 +8,15 @@ import com.mitsuha754.ecommerce.entity.Order;
 import com.mitsuha754.ecommerce.entity.OrderItem;
 import com.mitsuha754.ecommerce.vo.OrderConfirmVO;
 import com.mitsuha754.ecommerce.service.OrderService;
+
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
+
+import jakarta.validation.constraints.NotEmpty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/order")
@@ -32,17 +37,18 @@ public class OrderController {
         return R.ok(orderService.generateOrder(orderDTO));
     }
 
-    @PostMapping("/list")
-    public R<List<Order>> showOrders() {
-        String userName = LoginInterceptor.requireCurrentUser().getUserName();
-        List<Order> orders = orderService.showOrders(userName);
-        orderService.refreshOrderTimeout(orders);
-        return R.ok(orders);
+    @PostMapping("order-list")
+    public R<List<Order>> getOrderList(@RequestParam
+                                       @NotEmpty
+                                       String userName) {
+        return R.ok(orderService.showOrders(userName));
     }
 
-    @GetMapping("/expire/{orderNo}")
-    public R<Long> getExpireTime(@PathVariable String orderNo) {
-        return R.ok(orderService.getExpireTime(orderNo));
+    @PostMapping("/order-item-list")
+    public R<Map<String,List<OrderItem>>> showOrdersItem(@RequestParam
+                                                         @NotEmpty
+                                                         String userName) {
+        return R.ok(orderService.getOrderItems(userName));
     }
 
     @PostMapping("/cancel")
@@ -59,8 +65,7 @@ public class OrderController {
     }
 
     @PostMapping("/toPay")
-    public R<?> toPay(@RequestBody UserPayDTO userPayDTO) {
-        userPayDTO.setUserName(LoginInterceptor.requireCurrentUser().getUserName());
+    public R<?> toPay(@RequestBody @Valid UserPayDTO userPayDTO) {
         orderService.toPay(userPayDTO);
         return R.ok();
     }

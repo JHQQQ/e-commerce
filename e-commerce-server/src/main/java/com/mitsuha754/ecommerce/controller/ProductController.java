@@ -6,15 +6,18 @@ import com.mitsuha754.ecommerce.dto.ProductQueryDTO;
 import com.mitsuha754.ecommerce.entity.Product;
 import com.mitsuha754.ecommerce.vo.ProductVO;
 import com.mitsuha754.ecommerce.service.ProductService;
-import com.mitsuha754.ecommerce.util.OssUtil;
+
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-
-import java.util.Map;
 
 @RequestMapping("/product")
 @RestController
+@Validated
 public class ProductController {
 
     @Resource
@@ -22,19 +25,18 @@ public class ProductController {
 
 
     @GetMapping("/list")
-    public R<PageResult<Product>> getProductList(ProductQueryDTO productQueryDTO) {
-        PageResult<Product> list = productService.getProductPage(productQueryDTO);
-        return R.ok(list);
+    public R<PageResult<Product>> getProductList(@Valid ProductQueryDTO productQueryDTO) {
+        return R.ok(productService.getProductPage(productQueryDTO));
     }
 
 
 
-    @PostMapping("/detail")
-    public R<ProductVO> detailProduct(@RequestBody Map<String, Long> ids) {
-        Long id =  ids.get("id");
-        ProductVO productVO = productService.selectProductVOById(id);
-        return R.ok(productVO);
-
+    @GetMapping("/detail/{id}")
+    public R<ProductVO> detailProduct(@PathVariable
+                                      @NotNull(message = "商品id不能为空")
+                                      @Min(value = 1, message = "商品id必须大于0")
+                                      Long id) {
+        return R.ok(productService.selectProductVOById(id));
     }
 
 }

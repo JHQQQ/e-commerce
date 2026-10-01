@@ -1,5 +1,6 @@
 package com.mitsuha754.ecommerce.entity;
 
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -33,11 +34,13 @@ public class User {
     /**
      * 邮箱
      */
+
     private String email;
     /**
      * 余额
      */
     private BigDecimal balance;
+
     /**
      * 状态:
      * 0注销

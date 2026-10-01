@@ -2,7 +2,6 @@ package com.mitsuha754.ecommerce.mapper;
 
 import com.mitsuha754.ecommerce.dto.UserPayDTO;
 import com.mitsuha754.ecommerce.entity.Order;
-import com.mitsuha754.ecommerce.entity.OrderItem;
 import com.mitsuha754.ecommerce.vo.OrderConfirmVO;
 import org.apache.ibatis.annotations.Param;
 
@@ -20,12 +19,15 @@ public interface OrderMapper {
      */
     void  generateOrder(@Param("Order") Order order);
 
-
     /**
-     * 显示已经生成的订单列表
+     * 显示用户订单信息
      */
     List<Order> getOrders(@Param("userName")String userName);
 
+    /**
+     * 显示用户所有订单号
+     */
+    List<String> getOrderIds(@Param("userName")String userName);
     /**
      * 更改订单状态
      */
@@ -77,7 +79,7 @@ public interface OrderMapper {
     /**
      * 检查是否达到收货标准
      */
-    boolean checkReceiveable(@Param("userPayDTO") UserPayDTO userPayDTO);
+    boolean checkReceivable(@Param("userPayDTO") UserPayDTO userPayDTO);
 
     /**
      * 确认收货

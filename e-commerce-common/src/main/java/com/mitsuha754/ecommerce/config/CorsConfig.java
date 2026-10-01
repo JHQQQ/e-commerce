@@ -12,13 +12,11 @@ import java.util.List;
 
 /**
  * 跨域配置
- *
  * 允许的前端源由配置项 cors.allowed-origins 控制（逗号分隔）。
  * 默认允许本地开发常用的 localhost 端口；生产环境请通过环境变量
  * CORS_ALLOWED_ORIGINS 覆盖为实际前端域名。
- *
  * 支持两种取值：
- *  - 精确域名列表：https://shop.example.com,https://admin.example.com
+ *  - 精确域名列表：https://shop.example.com
  *  - 通配符 *：允许所有来源（配合 allowCredentials=false 使用）
  */
 @Configuration

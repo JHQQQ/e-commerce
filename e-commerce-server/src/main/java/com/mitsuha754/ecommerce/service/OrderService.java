@@ -8,6 +8,7 @@ import com.mitsuha754.ecommerce.entity.OrderItem;
 import com.mitsuha754.ecommerce.vo.OrderConfirmVO;
 
 import java.util.List;
+import java.util.Map;
 
 public interface OrderService {
 
@@ -27,6 +28,10 @@ public interface OrderService {
      */
     List<Order> showOrders(String userName);
 
+    /**
+     * 查看订单列表(优化)
+     */
+    Map<String,List<OrderItem>> getOrderItems(String userName);
     /**
      * 显示倒计时
      */

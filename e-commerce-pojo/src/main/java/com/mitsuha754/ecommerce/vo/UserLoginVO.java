@@ -5,20 +5,15 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 @Data
-public class UserVO {
+public class UserLoginVO {
 
-    private Integer userId;
 
     private String userName;
 
     private String role;
 
-    private BigDecimal balance;
-
     //鉴权用的token
     private String accessToken;
 
-    //记住登录后存储cookie的token
-    private String refreshToken;
 
 }

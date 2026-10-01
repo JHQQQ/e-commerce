@@ -17,10 +17,12 @@ import com.mitsuha754.ecommerce.service.AdminService;
 
 import jakarta.annotation.Resource;
 
+import jakarta.validation.constraints.NotEmpty;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 
 @RestController
@@ -153,7 +155,7 @@ public class AdminController {
     }
 
     @PostMapping("/order/deliver")
-    public R<?> deliverOrder(@RequestParam String orderNo) {
+    public R<?> deliverOrder(@RequestParam @NotEmpty String orderNo) {
         adminService.toDeliver(orderNo);
         return R.ok();
     }
@@ -166,6 +168,12 @@ public class AdminController {
     @PostMapping("/order/cancel")
     public R<?> cancelOrder(@RequestParam String orderNo) {
         adminService.cancelOrder(orderNo);
+        return R.ok();
+    }
+
+    @PostMapping("/confirmMerchant")
+    public R<?> confirmMerchant(@RequestParam BigInteger userId) {
+        adminService.confirmMerchant(userId);
         return R.ok();
     }
 }

@@ -4,15 +4,16 @@ import cn.hutool.core.codec.Base64;
 import cn.hutool.core.io.FastByteArrayOutputStream;
 import cn.hutool.core.util.IdUtil;
 import com.mitsuha754.ecommerce.dto.LoginDTO;
+import com.mitsuha754.ecommerce.dto.LoginInnerDTO;
 import com.mitsuha754.ecommerce.exception.BusinessException;
 
+import com.mitsuha754.ecommerce.interceptor.LoginInterceptor;
 import com.mitsuha754.ecommerce.mapper.AuthMapper;
 import com.mitsuha754.ecommerce.dto.RegisterDTO;
 import com.mitsuha754.ecommerce.entity.User;
-import com.mitsuha754.ecommerce.vo.UserVO;
+import com.mitsuha754.ecommerce.vo.UserLoginVO;
 import com.mitsuha754.ecommerce.service.AuthService;
 import com.mitsuha754.ecommerce.util.LoginUtil;
-import com.mitsuha754.ecommerce.util.RegisterValidatorUtil;
 
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -169,7 +170,7 @@ public class AuthServiceImpl implements AuthService {
             //根据尝试失败次数,判断是否需要校验登录验证码
             if(getFailCount(key) > 0){
                 if (!StringUtils.hasText(verify) || !StringUtils.hasText(code)){
-                    throw new BusinessException("验证码传参异常");
+                    throw new BusinessException("请输入验证码");
                 }
                 //验证码错误,先删除这个验证码再提示,生成新的验证码
                 Object val = redisTemplate.opsForValue().get(verify);
@@ -218,7 +219,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserVO login(LoginDTO loginDTO) {
+    public LoginInnerDTO login(LoginDTO loginDTO) {
+
         String userName = loginDTO.getUserName();
 
         // 限流：检查是否已锁定 或 是否已达失败阈值
@@ -237,7 +239,12 @@ public class AuthServiceImpl implements AuthService {
                 throw new BusinessException("用户名或密码错误");
             }
 
-            //  2.账号状态异常
+            //  2.密码错误（BCrypt）
+            boolean passOk = BCrypt.checkpw(loginDTO.getPassword(), user.getPassword());
+            if (!passOk) {
+                throw new BusinessException("用户名或密码错误");
+            }
+            //  3.账号状态异常
             if (user.getStatus() == 0) {
                 throw new BusinessException("账号已禁用，请联系管理员");
             }
@@ -245,11 +252,6 @@ public class AuthServiceImpl implements AuthService {
                 throw new BusinessException("账号状态异常，请联系管理员");
             }
 
-            //  3.密码错误（BCrypt）
-            boolean passOk = BCrypt.checkpw(loginDTO.getPassword(), user.getPassword());
-            if (!passOk) {
-                throw new BusinessException("用户名或密码错误");
-            }
             //根据不同异常打印信息,重置验证码
         }catch (BusinessException e){
             recordFail(userName);
@@ -264,50 +266,55 @@ public class AuthServiceImpl implements AuthService {
         clearFail(userName);
 
         //  登录成功 返回 VO
-        UserVO userVO = new UserVO();
-        userVO.setUserId(user.getId());
-        userVO.setUserName(user.getUserName());
-        userVO.setBalance(user.getBalance());
-        userVO.setRole(user.getRole());
+        LoginInnerDTO loginInnerDTO = new LoginInnerDTO();
+
+        UserLoginVO userLoginVO = new UserLoginVO();
+
+        userLoginVO.setUserName(user.getUserName());
+        userLoginVO.setRole(user.getRole());
 
         // 把用户信息放到 JWT 里
         Map<String, Object> map = new HashMap<>();
-        map.put("userName", userVO.getUserName());
-        map.put("role", userVO.getRole());
+        map.put("userName", userLoginVO.getUserName());
+        map.put("role", userLoginVO.getRole());
 
         String accessToken = loginUtil.createToken(map);
-        // 返回VO给前端
-        userVO.setAccessToken(accessToken);
+
+        userLoginVO.setAccessToken(accessToken);
 
         //RefreshToken存入Redis
-        if(loginDTO.getIsRemember()){
-            String refreshToken = loginUtil.generateRefreshToken();
-            int expireTime =loginUtil.getRefreshExpire();
-            try {
-                redisTemplate.opsForValue()
-                        .set(
-                                String.valueOf(refreshToken),
-                                user.getId(),
-                                expireTime,
-                                TimeUnit.SECONDS
-                        );
-                userVO.setRefreshToken(refreshToken);
-            } catch (Exception e) {
-                // Redis 不可用：本次无法记住登录，但不阻断正常登录
-                log.error("记住登录写入Redis失败（不影响本次登录）", e);
-            }
+        String refreshToken = loginUtil.generateRefreshToken();
+        //获取refreshToken时间
+        int expireTime = loginUtil.getRefreshExpire();
+        //没记住登录就存1天
+        if (!loginDTO.getIsRemember()) {
+            expireTime /= 30;
         }
-        log.info("{}登录, 身份:{}", userVO.getUserName(),userVO.getRole());
+        //存入Redis
+        try {
+            redisTemplate.opsForValue()
+                    .set(
+                            String.valueOf(refreshToken),
+                            map,
+                            expireTime,
+                            TimeUnit.SECONDS
+                    );
+            loginInnerDTO.setRefreshToken(refreshToken);
+        } catch (Exception e) {
+            // Redis 不可用：本次无法记住登录，但不阻断正常登录
+            log.error("记住登录写入Redis失败（不影响本次登录）", e);
+        }
+        log.info("{}登录, 身份:{}", userLoginVO.getUserName(), userLoginVO.getRole());
         redisTemplate.delete(loginDTO.getVerify());
-        return userVO;
+
+        loginInnerDTO.setUserLoginVO(userLoginVO);
+        return loginInnerDTO;
     }
 
 
     @Override
     @Transactional
     public void register(RegisterDTO registerDTO) {
-        //校验注册表单
-        RegisterValidatorUtil.validate(registerDTO);
 
         //校验验证码
         checkRegisterCaptcha(registerDTO.getVerify(), registerDTO.getRegisterCaptcha());
@@ -325,30 +332,38 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserVO refreshToken(String refreshToken) {
-        UserVO userVO = new UserVO();
+    public LoginInnerDTO refreshToken(String refreshToken) {
+        LoginInnerDTO loginInnerDTO = new LoginInnerDTO();
+        UserLoginVO userVO = new UserLoginVO();
         Long expire = redisTemplate.getExpire(refreshToken);
         //过期时间>0并且存在（getExpire 为 null 表示 key 不存在或 Redis 异常）
         if (expire > 0){
-            Integer userId = (Integer)redisTemplate.opsForValue().get(refreshToken);
-            User user = authMapper.login(authMapper.getUserNameById(userId));
-            userVO.setUserId(userId);
-            userVO.setUserName(user.getUserName());
-            userVO.setRole(user.getRole());
-            userVO.setBalance(user.getBalance());
+            Object obj = redisTemplate.opsForValue().get(refreshToken);
+            //检查Redis获取的东西
+            if (obj != null){
+                @SuppressWarnings("unchecked")
+                Map<String,String> redisMap = (Map<String,String>) obj;
 
-            Map<String, Object> map = new HashMap<>();
-            map.put("userName", user.getUserName());
-            map.put("role", user.getRole());
-            //创建新的accessToken实现续期
-            String newAccessToken = loginUtil.createToken(map);
-            userVO.setAccessToken(newAccessToken);
-            userVO.setRefreshToken(refreshToken);
-            log.info("{}通过token直接登录, 身份:{}, token:{}", userVO.getUserName(),userVO.getRole(),userVO.getAccessToken());
+                User user = authMapper.login((redisMap.get("userName")));
+
+                userVO.setUserName(user.getUserName());
+                userVO.setRole(user.getRole());
+
+                Map<String, Object> map = new HashMap<>();
+                map.put("userName", user.getUserName());
+                map.put("role", user.getRole());
+                //创建新的accessToken实现续期
+                String newAccessToken = loginUtil.createToken(map);
+                userVO.setAccessToken(newAccessToken);
+                log.info("{}通过token直接登录, 身份:{}, token:{}", userVO.getUserName(),userVO.getRole(),userVO.getAccessToken());
+            }else {
+                return null;
+            }
         }else{
             return null;
         }
-        return userVO;
+        loginInnerDTO.setUserLoginVO(userVO);
+        return loginInnerDTO;
     }
 
     @Override

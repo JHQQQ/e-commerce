@@ -80,6 +80,19 @@
             <version>5.8.31</version>
         </dependency>
 
+        <!-- ZXing 核心包，包含 BarcodeFormat -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+        <!-- ZXing JavaSE扩展，生成图片用（二维码图片输出） -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
         <!-- Spring AI DeepSeek -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

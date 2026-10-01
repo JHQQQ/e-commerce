@@ -21,8 +21,6 @@ public class ProductServiceImpl implements ProductService {
 
     @Resource
     private ProductMapper productMapper;
-    @Resource
-    private CategoryMapper categoryMapper;
 
     /**
      * 分页 / 分类 / 搜索 商品查询（最终版）
@@ -70,7 +68,11 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductVO selectProductVOById(Long id) {
         ProductVO productVO = productMapper.selectProductVOById(id);
-        productVO.setCategoryName(categoryMapper.selectCategoryNameById(productVO.getCategoryId()));
+
+        if (productVO == null) {
+            throw new BusinessException("未知商品");
+        }
+
         return productVO;
     }
 

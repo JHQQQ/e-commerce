@@ -2,6 +2,7 @@ package com.mitsuha754.ecommerce.service.Impl;
 
 import com.mitsuha754.ecommerce.enums.OrderStatusEnum;
 import com.mitsuha754.ecommerce.exception.BusinessException;
+import com.mitsuha754.ecommerce.interceptor.LoginInterceptor;
 import com.mitsuha754.ecommerce.mapper.CartMapper;
 import com.mitsuha754.ecommerce.mapper.OrderItemMapper;
 import com.mitsuha754.ecommerce.mapper.OrderMapper;
@@ -24,7 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -161,7 +164,29 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<Order> showOrders(String userName) {
+        if(!userName.equals(LoginInterceptor.requireCurrentUser().getUserName())) {
+            throw new BusinessException("获取订单信息失败");
+        }
+
         return orderMapper.getOrders(userName);
+    }
+
+    @Override
+    public Map<String,List<OrderItem>> getOrderItems(String userName) {
+
+        //先获取用户所有的订单号
+        List<String> orderIds = orderMapper.getOrderIds(userName);
+
+        Map<String,List<OrderItem>> orderItemMap = new HashMap<>();
+        //遍历获取每个订单号对应的商品信息
+        for (String orderId : orderIds) {
+            //通过订单号获取单个订单详情信息
+           List<OrderItem> orderItems = orderItemMapper.getOrderItems(orderId);
+
+           orderItemMap.put(orderId, orderItems);
+        }
+
+        return orderItemMap;
     }
 
     @Override
@@ -211,12 +236,17 @@ public class OrderServiceImpl implements OrderService {
         String userName = userPayDTO.getUserName();
         String orderNo = userPayDTO.getOrderNo();
 
+        //校验用户名
+        if (!Objects.equals(userName, LoginInterceptor.requireCurrentUser().getUserName())) {
+            throw new BusinessException("用户状态异常,支付取消");
+        }
+
         // 1.校验订单归属当前用户（同时覆盖“订单不存在”）
         checkOrderOwner(orderNo, userName);
 
         // 2.校验订单当前状态必须为待支付，防止重复支付
         if (!Objects.equals(orderMapper.orderStatus(orderNo), OrderStatusEnum.PENDING_PAY.getCode())) {
-            throw new BusinessException("订单状态异常，无法支付");
+            throw new BusinessException("订单状态异常，支付取消");
         }
 
         // 3.校验订单是否过期（Redis 里的过期时间）
@@ -258,7 +288,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public void receivedOrder(UserPayDTO userPayDTO) {
-        if(!orderMapper.checkReceiveable(userPayDTO)){
+        if(!orderMapper.checkReceivable(userPayDTO)){
             throw new BusinessException("状态异常");
         }
         orderMapper.receiveOrder(userPayDTO.getOrderNo());

@@ -3,6 +3,7 @@ package com.mitsuha754.ecommerce.mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 
 public interface UserMapper {
     /**
@@ -26,5 +27,13 @@ public interface UserMapper {
      */
     BigDecimal getUserBalance(@Param("userName")String userName);
 
+    /**
+     * 根据ID查用户名
+     */
+    String checkUserName(@Param("userId") BigInteger userId);
 
+    /**
+     * 校验用户身份
+     */
+    String getRoleByName(@Param("userName") String userName);
 }

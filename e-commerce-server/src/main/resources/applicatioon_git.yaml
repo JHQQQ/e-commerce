@@ -13,12 +13,16 @@ mybatis:
 jwt:
   # 密钥
 #   secret:
-  # access_token 过期时间，单位毫秒，30分钟
-  access-expire: 1800000
+  # access_token 过期时间，单位毫秒，5分钟
+  access-expire: 3000000
   # refresh_token 过期时间，单位秒，30天
   refresh-expire: 2592000
 
 spring:
+  web:
+    resources:
+      add-mappings: false # 关闭静态资源处理器！
+
   datasource:
     username:
     password:

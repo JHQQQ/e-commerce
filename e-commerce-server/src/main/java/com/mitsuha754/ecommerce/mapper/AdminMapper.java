@@ -5,6 +5,7 @@ import com.mitsuha754.ecommerce.vo.UserQueryVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 
 public interface AdminMapper {
@@ -19,4 +20,9 @@ public interface AdminMapper {
      * @return 订单
      */
     List<AdminOrderListVO> showAllOrders();
+
+    /**
+     * 确认授权商家
+     */
+    void confirmMerchant(@Param("id") BigInteger id);
 }

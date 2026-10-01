@@ -33,6 +33,6 @@ public class WebConfig implements WebMvcConfigurer {
                         "/home",
                         "/product"
                 );
-        // 你以后如果有不需要登录的接口，都可以加在这里
+        // 不需要登录的接口，都可以加在这里
     }
 }

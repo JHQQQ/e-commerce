@@ -5,6 +5,7 @@ import com.mitsuha754.ecommerce.vo.AdminOrderListVO;
 import com.mitsuha754.ecommerce.vo.UserQueryVO;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 
 
@@ -46,4 +47,9 @@ public interface AdminService {
      * 取消订单（管理员，不校验归属，回退库存与余额）
      */
     void cancelOrder(String orderNo);
+
+    /**
+     * 确认授权商家
+     */
+    void confirmMerchant(BigInteger userId);
 }
