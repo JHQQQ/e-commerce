@@ -1,29 +1,21 @@
 package com.mitsuha754.ecommerce.interceptor;
 
 
-import cn.hutool.jwt.JWTException;
 import com.mitsuha754.ecommerce.enums.ResultCodeEnum;
 import com.mitsuha754.ecommerce.exception.BusinessException;
-import com.mitsuha754.ecommerce.result.R;
-import com.mitsuha754.ecommerce.util.CookieUtils;
 import com.mitsuha754.ecommerce.util.LoginUtil;
 import com.mitsuha754.ecommerce.vo.UserLoginVO;
 
-import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.Getter;
 import org.jspecify.annotations.NonNull;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import io.jsonwebtoken.Claims;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
@@ -62,8 +54,9 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         if (uri.equals("/") || uri.startsWith("/api/product/detail") || uri.startsWith("/api/product/list")
+                || uri.startsWith("/api/product/shop")
                 || uri.startsWith("/api/category/list") || uri.startsWith("/api/refresh") || uri.startsWith("/api/getCaptchaCode")) {
-            // 首页 / 商品列表 / 商品详情 / 商品分类 → 游客直接放行
+            // 首页 / 商品列表 / 商品详情 / 店铺公开信息 / 商品分类 → 游客直接放行
             return true;
         }
 
@@ -75,13 +68,12 @@ public class LoginInterceptor implements HandlerInterceptor {
             Claims claims = loginUtil.parseToken(accessToken);
 
             UserLoginVO user = new UserLoginVO();
+            user.setUserId(claims.get("id", Integer.class));
             user.setUserName(claims.get("userName", String.class));
             user.setRole(claims.get("role", String.class));
 
             USER.set(user);
 
-        }catch (ExpiredJwtException e){
-            return false;
         }
         catch (Exception e) {
             //accessToken出现异常

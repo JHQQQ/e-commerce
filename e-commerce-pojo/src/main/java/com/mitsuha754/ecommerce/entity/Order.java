@@ -61,4 +61,9 @@ public class Order {
      * 更新时间
      */
     private LocalDateTime updateTime;
+
+    /**
+     * 商家结算（打款）时间：买家确认收货后把货款入账给各商家，NULL 表示尚未结算
+     */
+    private LocalDateTime settleTime;
 }

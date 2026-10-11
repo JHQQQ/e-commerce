@@ -5,7 +5,6 @@ import com.mitsuha754.ecommerce.vo.UserQueryVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.List;
 
 public interface AdminMapper {
@@ -16,13 +15,10 @@ public interface AdminMapper {
     void updateUserBalance(@Param("id") Integer id, @Param("balance") BigDecimal balance);
 
     /**
-     * 获取有效订单(未发货,已发货)
-     * @return 订单
+     * 获取订单列表
+     *
+     * @param status 订单状态过滤：0待付款 1待发货 2已发货 3已完成 4已取消；
+     *               null 表示默认只查进行中（待发货/已发货）
      */
-    List<AdminOrderListVO> showAllOrders();
-
-    /**
-     * 确认授权商家
-     */
-    void confirmMerchant(@Param("id") BigInteger id);
+    List<AdminOrderListVO> showAllOrders(@Param("status") Integer status);
 }

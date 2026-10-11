@@ -16,4 +16,9 @@ public class CartVO {
     private String productName;
     private BigDecimal price;
     private BigDecimal totalPrice;
+
+    /**
+     * 商品所属商家用户ID（null 表示平台历史商品），用于前端标记「自己的商品」
+     */
+    private Long merchantId;
 }

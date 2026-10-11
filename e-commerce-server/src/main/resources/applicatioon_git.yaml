@@ -19,6 +19,13 @@ jwt:
   refresh-expire: 2592000
 
 spring:
+  # 文件上传大小限制（默认 1MB 会把 1~2MB 的图片直接拒掉，业务规则是 ≤2MB）
+  servlet:
+    multipart:
+      max-file-size: 3MB
+      max-request-size: 10MB
+      file-size-threshold: 512KB
+
   web:
     resources:
       add-mappings: false # 关闭静态资源处理器！

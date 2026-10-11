@@ -14,8 +14,11 @@ import com.mitsuha754.ecommerce.dto.OrderRedisDTO;
 import com.mitsuha754.ecommerce.dto.UserPayDTO;
 import com.mitsuha754.ecommerce.entity.Order;
 import com.mitsuha754.ecommerce.entity.OrderItem;
+import com.mitsuha754.ecommerce.vo.MerchantOrderVO;
+import com.mitsuha754.ecommerce.vo.MerchantSettleVO;
 import com.mitsuha754.ecommerce.vo.OrderConfirmVO;
 import com.mitsuha754.ecommerce.vo.ProductVO;
+import com.mitsuha754.ecommerce.vo.UserLoginVO;
 import com.mitsuha754.ecommerce.service.OrderService;
 import com.mitsuha754.ecommerce.util.OrderUtil;
 import com.mitsuha754.ecommerce.util.RedisOrderUtil;
@@ -23,6 +26,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -54,7 +58,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<OrderConfirmVO> getOrdersConfirm(String userName) {
-        return orderMapper.getOrderConfirm(userName);
+        List<OrderConfirmVO> list = orderMapper.getOrderConfirm(userName);
+        // 结算预览阶段就拦住「买自己店铺商品」的情况
+        checkNotSelfPurchase(list);
+        return list;
     }
 
     //生成订单
@@ -95,6 +102,9 @@ public class OrderServiceImpl implements OrderService {
         for (OrderConfirmVO orderConfirmVO : list) {
             totalAmount = totalAmount.add(orderConfirmVO.getTotalPrice());
         }
+
+        // 下单前再兜底校验一次（购物车结算与立即购买都覆盖）
+        checkNotSelfPurchase(list);
 
         //存入Redis
         OrderRedisDTO orderRedisDTO = new OrderRedisDTO();
@@ -154,6 +164,8 @@ public class OrderServiceImpl implements OrderService {
         }
         OrderConfirmVO vo = new OrderConfirmVO();
         vo.setProductId(orderDTO.getProductId());
+        // 必须带上商家ID，否则「立即购买」无法拦截购买自己商品
+        vo.setMerchantId(product.getMerchantId());
         vo.setProductName(product.getName());
         vo.setImage(product.getImage());
         vo.setQuantity(String.valueOf(quantity));
@@ -164,10 +176,6 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<Order> showOrders(String userName) {
-        if(!userName.equals(LoginInterceptor.requireCurrentUser().getUserName())) {
-            throw new BusinessException("获取订单信息失败");
-        }
-
         return orderMapper.getOrders(userName);
     }
 
@@ -287,27 +295,75 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void receivedOrder(UserPayDTO userPayDTO) {
-        if(!orderMapper.checkReceivable(userPayDTO)){
+        String orderNo = userPayDTO.getOrderNo();
+
+        // 1) 先给出友好提示：订单必须存在、归属当前用户、且处于「已发货」状态
+        if (!orderMapper.checkReceivable(userPayDTO)) {
             throw new BusinessException("状态异常");
         }
-        orderMapper.receiveOrder(userPayDTO.getOrderNo());
-        log.info("用户:{}收货 订单号:{}",  userPayDTO.getUserName(), userPayDTO.getOrderNo());
+
+        // 2) 原子流转：2(已发货) → 3(已完成)。
+        //    带 status=2 条件，保证并发/重复点击「确认收货」只有一个请求成功，
+        //    后面才不会重复给商家打款。
+        int rows = orderMapper.receiveOrder(orderNo);
+        if (rows == 0) {
+            throw new BusinessException("订单状态已变更，请刷新后重试");
+        }
+
+        // 3) 交易完成 → 把货款结算给对应商家（平台代收 → 打款给商家）
+        settleToMerchants(orderNo);
+
+        log.info("用户:{}确认收货 订单号:{}", userPayDTO.getUserName(), orderNo);
+    }
+
+    /**
+     * 订单结算：把订单货款按商品归属分别打给各商家
+     *
+     * 说明：
+     *  1. 一个订单可能包含多个商家的商品，按 order_item → product.merchant_id 汇总后分别入账；
+     *  2. 平台历史商品（product.merchant_id 为空）不参与结算，这部分货款留在平台；
+     *  3. 调用方已通过「2 → 3」的原子流转保证本方法对同一订单只会执行一次；
+     *     同时 markSettled 带 settle_time IS NULL 条件，作为防重复打款的第二道保险。
+     */
+    private void settleToMerchants(String orderNo) {
+        List<MerchantSettleVO> settlements = orderMapper.selectSettlementByOrder(orderNo);
+
+        BigDecimal settledTotal = BigDecimal.ZERO;
+        for (MerchantSettleVO settle : settlements) {
+            if (settle.getMerchantId() == null || settle.getAmount() == null) {
+                continue;
+            }
+            userMapper.addBalance(settle.getMerchantId(), settle.getAmount());
+            settledTotal = settledTotal.add(settle.getAmount());
+            log.info("订单:{} 结算打款给商家[{}] 金额:{}", orderNo, settle.getMerchantId(), settle.getAmount());
+        }
+
+        orderMapper.markSettled(orderNo);
+        log.info("订单:{} 结算完成，商家合计入账:{}, 涉及商家数:{}", orderNo, settledTotal, settlements.size());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelOrder(String orderNo, String userName) {
         checkOrderOwner(orderNo, userName);
+
+        Integer status = orderMapper.orderStatus(orderNo);
+        // 与商家端/管理端保持一致：只有待付款、待发货可以取消。
+        // 已完成订单的货款已经结算给商家，不允许再取消（避免出现「商家已收款但订单被取消」）
+        if (!Objects.equals(status, OrderStatusEnum.PENDING_PAY.getCode())
+                && !Objects.equals(status, OrderStatusEnum.PENDING_DELIVER.getCode())) {
+            throw new BusinessException("订单当前状态不可取消");
+        }
+
         //订单状态为未发货,取消后回退库存
-        Integer status = OrderStatusEnum.PENDING_DELIVER.getCode();
-        if(orderMapper.orderStatus(orderNo)
-                .equals(status)){
+        if (Objects.equals(status, OrderStatusEnum.PENDING_DELIVER.getCode())) {
             //回退库存
             orderMapper.recoverStock(orderNo);
             //回退余额
             orderMapper.reconvertBalance(orderNo);
-            log.info("订单:{}在支付完成后取消", orderNo);
+            log.info("订单:{}在支付完成后取消，已回退库存与余额", orderNo);
         }
         //订单状态统一改为取消
         orderMapper.updateOrderStatus(orderNo,OrderStatusEnum.CANCELED.getCode());
@@ -325,6 +381,88 @@ public class OrderServiceImpl implements OrderService {
     private void checkOrderOwner(String orderNo, String userName) {
         String owner = orderMapper.selectUserName(orderNo);
         if (owner == null || !owner.equals(userName)) {
+            throw new BusinessException("无权限操作该订单");
+        }
+    }
+
+    /**
+     * 禁止商家购买自己店铺的商品（商家端与用户端共用同一账号）
+     */
+    private void checkNotSelfPurchase(List<OrderConfirmVO> list) {
+        UserLoginVO me = LoginInterceptor.requireCurrentUser();
+        if (me.getUserId() == null || list == null || list.isEmpty()) {
+            return;
+        }
+        Long myUserId = me.getUserId().longValue();
+        for (OrderConfirmVO item : list) {
+            if (item.getMerchantId() != null && item.getMerchantId().equals(myUserId)) {
+                throw new BusinessException("不能购买自己店铺的商品：" + item.getProductName());
+            }
+        }
+    }
+
+    // ==================== 商家端订单管理 ====================
+
+    @Override
+    public List<MerchantOrderVO> getMerchantOrders(Long merchantId, Integer status) {
+        return orderMapper.selectMerchantOrders(merchantId, status);
+    }
+
+    @Override
+    public List<OrderItem> getMerchantOrderDetail(String orderNo, Long merchantId) {
+        requireMerchantOrder(orderNo, merchantId);
+        return orderItemMapper.selectMerchantOrderItems(orderNo, merchantId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void merchantDeliver(String orderNo, Long merchantId) {
+        requireMerchantOrder(orderNo, merchantId);
+
+        Integer status = orderMapper.orderStatus(orderNo);
+        if (!Objects.equals(status, OrderStatusEnum.PENDING_DELIVER.getCode())) {
+            throw new BusinessException("订单当前状态不可发货");
+        }
+
+        orderMapper.updateOrderStatus(orderNo, OrderStatusEnum.DELIVERED.getCode());
+        log.info("商家[{}]发货订单:{}", merchantId, orderNo);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void merchantCancel(String orderNo, Long merchantId) {
+        requireMerchantOrder(orderNo, merchantId);
+
+        Integer status = orderMapper.orderStatus(orderNo);
+        if (Objects.equals(status, OrderStatusEnum.DELIVERED.getCode())
+                || Objects.equals(status, OrderStatusEnum.COMPLETED.getCode())) {
+            throw new BusinessException("订单已发货或已完成，不能取消");
+        }
+
+        // 买家已付款：取消时回退库存与余额
+        if (Objects.equals(status, OrderStatusEnum.PENDING_DELIVER.getCode())) {
+            orderMapper.recoverStock(orderNo);
+            orderMapper.reconvertBalance(orderNo);
+            log.info("订单:{}在支付完成后被商家取消，已回退库存与余额", orderNo);
+        }
+
+        orderMapper.updateOrderStatus(orderNo, OrderStatusEnum.CANCELED.getCode());
+        try {
+            redisOrderUtil.deleteTempOrder(orderNo);
+        } catch (Exception e) {
+            log.error("商家取消订单后删除Redis临时订单失败，订单:{}", orderNo, e);
+        }
+        log.info("商家[{}]取消订单:{}", merchantId, orderNo);
+    }
+
+    /**
+     * 校验该订单是否包含本商家的商品，防止越权操作他人订单
+     */
+    private void requireMerchantOrder(String orderNo, Long merchantId) {
+        if (!StringUtils.hasText(orderNo) || merchantId == null) {
+            throw new BusinessException("参数异常");
+        }
+        if (orderMapper.countMerchantOrderItems(orderNo, merchantId) == 0) {
             throw new BusinessException("无权限操作该订单");
         }
     }

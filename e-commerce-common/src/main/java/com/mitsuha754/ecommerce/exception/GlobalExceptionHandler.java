@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.Objects;
@@ -36,6 +37,18 @@ public class GlobalExceptionHandler {
         log.error("系统异常：", e);
         return R.error(ResultCodeEnum.SERVER_ERROR.getCode(),
                 ResultCodeEnum.SERVER_ERROR.getMessage()); // 系统级错误
+    }
+
+    /**
+     * 上传文件超过容器限制（spring.servlet.multipart.max-file-size）。
+     * 这个异常在进入 Controller 之前就会抛出，必须单独处理，
+     * 否则用户只会看到笼统的「网络异常」。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public R<?> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        log.warn("上传文件超过大小限制：{}", e.getMessage());
+        return R.error(ResultCodeEnum.PARAM_ERROR.getCode(),
+                "上传的图片过大，请压缩到 2MB 以内后重试");
     }
 
     //捕获传参异常

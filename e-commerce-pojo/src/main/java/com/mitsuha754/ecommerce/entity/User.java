@@ -37,6 +37,10 @@ public class User {
 
     private String email;
     /**
+     * 常用收货地址（用户中心维护，下单时可一键填入）
+     */
+    private String address;
+    /**
      * 余额
      */
     private BigDecimal balance;

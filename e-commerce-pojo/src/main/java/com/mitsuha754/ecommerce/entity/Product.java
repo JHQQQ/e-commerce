@@ -18,6 +18,11 @@ public class Product {
     private Long id;
 
     /**
+     * 所属商家用户ID（NULL 表示平台历史商品）
+     */
+    private Long merchantId;
+
+    /**
      * 分类ID
      */
     private Long categoryId;
@@ -48,9 +53,14 @@ public class Product {
     private String description;
 
     /**
-     * 商品状态（如：上架/下架）
+     * 商品状态（1上架 / 0下架）
      */
     private Integer status;
+
+    /**
+     * 上架审核状态（0待审核 1已通过 2已驳回）
+     */
+    private Integer auditStatus;
 
     /**
      * 上架时间
@@ -66,5 +76,10 @@ public class Product {
      * 更新时间
      */
     private String updateTime;
+
+    /**
+     * 所属店铺名称（非数据库字段，用户端列表联表查出）
+     */
+    private String shopName;
 
 }

@@ -2,7 +2,7 @@ package com.mitsuha754.ecommerce.controller;
 
 import com.mitsuha754.ecommerce.dto.LoginInnerDTO;
 import com.mitsuha754.ecommerce.enums.ResultCodeEnum;
-import com.mitsuha754.ecommerce.interceptor.LoginInterceptor;
+
 import com.mitsuha754.ecommerce.result.R;
 import com.mitsuha754.ecommerce.dto.LoginDTO;
 import com.mitsuha754.ecommerce.dto.RegisterDTO;
@@ -66,7 +66,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public R<UserLoginVO> refresh(HttpServletRequest request, HttpServletResponse response) {
-        // 优先取请求头 refreshToken（小程序端用），其次取 cookie（Web 端用）
+        // 优先取请求头 refreshToken，其次取 cookie（Web 端用）
         String refreshToken = request.getHeader("refreshToken");
         if (!StringUtils.hasText(refreshToken)) {
             refreshToken = CookieUtils.getCookie(request, "refresh_token");
@@ -80,13 +80,13 @@ public class AuthController {
             if(loginInnerDTO.getUserLoginVO() == null){
                 //token无效，清除浏览器残留cookie
                 CookieUtils.removeCookie(response,"refresh_token",https);
-                return R.ok();
+                return R.error(ResultCodeEnum.NO_TOKEN.getCode(),"登录已失效，请重新登录!");
             }
 
             return R.ok(loginInnerDTO.getUserLoginVO());
         }
-        // cookie本身就没有，属于正常场景，返回业务401，不抛异常，不打印异常堆栈
-        return R.ok();
+        // cookie本身就没有，返回4001错误码
+        return R.error(ResultCodeEnum.NO_TOKEN.getCode(),"登录已失效，请重新登录!");
     }
 
     //用户注册

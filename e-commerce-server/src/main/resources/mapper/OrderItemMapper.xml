@@ -36,4 +36,21 @@
         FROM order_item
         WHERE order_no = #{OrderNo}
     </select>
+
+    <!-- 商家端订单详情：只返回属于该商家的商品 -->
+    <select id="selectMerchantOrderItems" resultType="com.mitsuha754.ecommerce.entity.OrderItem">
+        SELECT oi.id,
+               oi.product_id    AS productId,
+               oi.product_name  AS productName,
+               oi.product_image AS image,
+               oi.price,
+               oi.quantity,
+               oi.total_amount  AS totalPrice,
+               oi.order_no      AS orderNo,
+               oi.create_time   AS createTime
+        FROM order_item oi
+                 INNER JOIN product p ON p.id = oi.product_id
+        WHERE oi.order_no = #{orderNo}
+          AND p.merchant_id = #{merchantId}
+    </select>
 </mapper>

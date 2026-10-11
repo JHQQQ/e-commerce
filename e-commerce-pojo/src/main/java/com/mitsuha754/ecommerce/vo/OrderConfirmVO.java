@@ -19,6 +19,11 @@ public class OrderConfirmVO {
     private Long productId;
 
     /**
+     * 商品所属商家用户ID（null 表示平台历史商品）
+     */
+    private Long merchantId;
+
+    /**
      * 商品名称
      */
     private String productName;

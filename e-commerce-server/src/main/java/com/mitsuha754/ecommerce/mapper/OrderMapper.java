@@ -2,6 +2,8 @@ package com.mitsuha754.ecommerce.mapper;
 
 import com.mitsuha754.ecommerce.dto.UserPayDTO;
 import com.mitsuha754.ecommerce.entity.Order;
+import com.mitsuha754.ecommerce.vo.MerchantOrderVO;
+import com.mitsuha754.ecommerce.vo.MerchantSettleVO;
 import com.mitsuha754.ecommerce.vo.OrderConfirmVO;
 import org.apache.ibatis.annotations.Param;
 
@@ -83,6 +85,41 @@ public interface OrderMapper {
 
     /**
      * 确认收货
+     *
+     * @return 影响行数（带 status=2 条件，并发/重复提交时只有一个能成功）
      */
-    void receiveOrder(@Param("orderNo")String orderNo);
+    int receiveOrder(@Param("orderNo")String orderNo);
+
+    // ==================== 商家结算（打款） ====================
+
+    /**
+     * 统计该订单需要结算给各商家的金额（按 商品 → 商家 汇总）
+     */
+    List<MerchantSettleVO> selectSettlementByOrder(@Param("orderNo") String orderNo);
+
+    /**
+     * 标记订单已结算（只对 settle_time 为空的有效，保证不会重复打款）
+     *
+     * @return 影响行数
+     */
+    int markSettled(@Param("orderNo") String orderNo);
+
+    // ==================== 商家端订单管理 ====================
+
+    /**
+     * 查询包含本店商品的订单（含本店商品小计、件数）
+     *
+     * @param merchantId 商家用户ID
+     * @param status     订单状态过滤，null 表示查询全部状态
+     */
+    List<MerchantOrderVO> selectMerchantOrders(@Param("merchantId") Long merchantId,
+                                               @Param("status") Integer status);
+
+    /**
+     * 统计订单中属于本店的商品明细数量（商家操作订单前的归属校验）
+     *
+     * @return 0 表示该订单与本店无关
+     */
+    int countMerchantOrderItems(@Param("orderNo") String orderNo,
+                                @Param("merchantId") Long merchantId);
 }

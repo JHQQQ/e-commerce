@@ -5,6 +5,7 @@ import com.mitsuha754.ecommerce.dto.OrderItemDataDTO;
 import com.mitsuha754.ecommerce.dto.UserPayDTO;
 import com.mitsuha754.ecommerce.entity.Order;
 import com.mitsuha754.ecommerce.entity.OrderItem;
+import com.mitsuha754.ecommerce.vo.MerchantOrderVO;
 import com.mitsuha754.ecommerce.vo.OrderConfirmVO;
 
 import java.util.List;
@@ -67,4 +68,29 @@ public interface OrderService {
      * @param userPayDTO 用户名+订单
      */
     void receivedOrder(UserPayDTO userPayDTO);
+
+    // ==================== 商家端订单管理 ====================
+
+    /**
+     * 商家端：查询包含本店商品的订单
+     *
+     * @param merchantId 商家用户ID
+     * @param status     订单状态过滤：null 查全部
+     */
+    List<MerchantOrderVO> getMerchantOrders(Long merchantId, Integer status);
+
+    /**
+     * 商家端：订单详情（只返回本店商品明细，需订单包含本店商品）
+     */
+    List<OrderItem> getMerchantOrderDetail(String orderNo, Long merchantId);
+
+    /**
+     * 商家端：发货（订单必须包含本店商品且处于待发货状态）
+     */
+    void merchantDeliver(String orderNo, Long merchantId);
+
+    /**
+     * 商家端：取消订单（回退库存与买家余额）
+     */
+    void merchantCancel(String orderNo, Long merchantId);
 }

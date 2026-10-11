@@ -6,6 +6,7 @@
 
     <resultMap id="BaseResultMap" type="com.mitsuha754.ecommerce.entity.Product">
         <id column="id" property="id"/>
+        <result column="merchant_id" property="merchantId"/>
         <result column="category_id" property="categoryId"/>
         <result column="name" property="name"/>
         <result column="price" property="price"/>
@@ -13,12 +14,17 @@
         <result column="image" property="image"/>
         <result column="description" property="description"/>
         <result column="status" property="status"/>
+        <result column="audit_status" property="auditStatus"/>
         <result column="shelve_time" property="shelveTime"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
+        <!-- 非数据库字段：用户端列表联表查出的店铺名 -->
+        <result column="shop_name" property="shopName"/>
     </resultMap>
 
     <resultMap id="VOMapper" type="com.mitsuha754.ecommerce.vo.ProductVO">
+        <id column="id" property="id"/>
+        <result column="merchant_id" property="merchantId"/>
         <result column="category_id" property="categoryId"/>
         <result column="image" property="image"/>
         <result column="name" property="name"/>
@@ -26,112 +32,253 @@
         <result column="price" property="price"/>
         <result column="stock" property="stock"/>
         <result column="description" property="description"/>
+        <result column="shop_name" property="shopName"/>
     </resultMap>
 
     <sql id="BASE_COLUMNS">
-                id, category_id, name, price, stock, image,
-                description, status, shelve_time, create_time, update_time
+        id, merchant_id, category_id, name, price, stock, image,
+        description, status, audit_status, shelve_time, create_time, update_time
     </sql>
 
-    <insert id="addProduct">
-        INSERT INTO product
-        (<include refid="BASE_COLUMNS"/>)
-        VALUES
-        (
-        NULL,   <!-- id 自增，传 NULL 即可 -->
-        #{Product.categoryId},
-        #{Product.name},
-        #{Product.price},
-        #{Product.stock},
-        #{Product.image},
-        #{Product.description},
-        #{Product.status},
-        NOW(),  <!-- 上架时间 -->
-        NOW(),  <!-- 创建时间 -->
-        NOW()   <!-- 更新时间 -->
-        )
-    </insert>
+    <!-- 用户端只展示：已上架 + 审核通过 -->
+    <sql id="USER_VISIBLE">
+        status = 1 AND audit_status = 1
+    </sql>
 
+    <!-- ==================== 用户端 ==================== -->
 
-    <!-- 分页查询 -->
+    <!-- 用户端商品列表：联表带出所属店铺名称 -->
     <select id="selectProductPage" resultMap="BaseResultMap">
-        SELECT <include refid="BASE_COLUMNS"/>
-        FROM product
+        SELECT p.id,
+               p.merchant_id,
+               p.category_id,
+               p.name,
+               p.price,
+               p.stock,
+               p.image,
+               p.description,
+               p.status,
+               p.audit_status,
+               p.shelve_time,
+               p.create_time,
+               p.update_time,
+               m.shop_name AS shop_name
+        FROM product p
+                 LEFT JOIN merchant m ON m.user_id = p.merchant_id
         <where>
+            p.status = 1 AND p.audit_status = 1
             <if test="query.keyword != null and query.keyword != ''">
-                AND name LIKE CONCAT('%', #{query.keyword}, '%')
+                AND p.name LIKE CONCAT('%', #{query.keyword}, '%')
             </if>
             <if test="query.categoryId != null">
-                AND category_id = #{query.categoryId}
+                AND p.category_id = #{query.categoryId}
             </if>
-
         </where>
-        ORDER BY create_time DESC
+        ORDER BY p.create_time DESC, p.id DESC
         <if test="query.page != null and query.size != null">
             LIMIT #{query.page}, #{query.size}
         </if>
     </select>
 
-    <!-- 查询总数 -->
     <select id="selectProductCount" resultType="long">
         SELECT COUNT(*)
         FROM product
         <where>
+            AND
+            <include refid="USER_VISIBLE"/>
             <if test="query.keyword != null and query.keyword != ''">
                 AND name LIKE CONCAT('%', #{query.keyword}, '%')
             </if>
             <if test="query.categoryId != null">
                 AND category_id = #{query.categoryId}
             </if>
-            AND status = 1
         </where>
     </select>
 
-    <select id="selectProductByCategoryId" resultMap="BaseResultMap">
-        SELECT <include refid="BASE_COLUMNS"/>
+    <select id="selectProductVOById" resultMap="VOMapper">
+        SELECT product.id          AS id,
+               product.merchant_id AS merchant_id,
+               product.name        AS name,
+               product.category_id AS category_id,
+               c.name              AS category_name,
+               product.price       AS price,
+               product.stock       AS stock,
+               product.description AS description,
+               product.image       AS image,
+               m.shop_name         AS shop_name
         FROM product
-        WHERE category_id = #{id} and status != 0
-    </select>
-
-    <select id="selectProductVOById" resultMap="VOMapper" >
-        SELECT
-            product.id   AS id,
-            product.name AS name,
-            product.category_id AS category_id,
-            c.name AS category_name,
-            product.price AS price,
-            product.stock AS stock,
-            product.description AS description,
-            product.image AS image
-        FROM product
-        JOIN category c ON product.category_id = c.id
+                 JOIN category c ON product.category_id = c.id
+                 LEFT JOIN merchant m ON m.user_id = product.merchant_id
         WHERE product.id = #{id}
+          AND product.status = 1
+          AND product.audit_status = 1
     </select>
 
-    <update id="editProduct">
+    <select id="countByCategoryId" resultType="long">
+        SELECT COUNT(*)
+        FROM product
+        WHERE category_id = #{id}
+    </select>
+
+    <!-- ==================== 商家端 ==================== -->
+
+    <select id="selectMerchantProductPage" resultMap="BaseResultMap">
+        SELECT
+        <include refid="BASE_COLUMNS"/>
+        FROM product
+        <where>
+            merchant_id = #{query.merchantId}
+            <if test="query.keyword != null and query.keyword != ''">
+                AND name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+            <if test="query.auditStatus != null">
+                AND audit_status = #{query.auditStatus}
+            </if>
+        </where>
+        ORDER BY create_time DESC, id DESC
+        <if test="query.page != null and query.size != null">
+            LIMIT #{query.page}, #{query.size}
+        </if>
+    </select>
+
+    <select id="selectMerchantProductCount" resultType="long">
+        SELECT COUNT(*)
+        FROM product
+        <where>
+            merchant_id = #{query.merchantId}
+            <if test="query.keyword != null and query.keyword != ''">
+                AND name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+            <if test="query.auditStatus != null">
+                AND audit_status = #{query.auditStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectProductById" resultMap="BaseResultMap">
+        SELECT
+        <include refid="BASE_COLUMNS"/>
+        FROM product
+        WHERE id = #{id}
+    </select>
+
+    <!-- 新增商品：商家提交后进入待审核 + 下架状态 -->
+    <insert id="addProduct" useGeneratedKeys="true" keyProperty="Product.id">
+        INSERT INTO product
+            (merchant_id, category_id, name, price, stock, image,
+             description, status, audit_status, shelve_time, create_time, update_time)
+        VALUES (#{Product.merchantId},
+                #{Product.categoryId},
+                #{Product.name},
+                #{Product.price},
+                #{Product.stock},
+                #{Product.image},
+                #{Product.description},
+                0,
+                0,
+                NULL,
+                NOW(),
+                NOW())
+    </insert>
+
+    <!-- 商家修改商品：修改后重新进入待审核，并先下架 -->
+    <update id="updateMerchantProduct">
         UPDATE product
-        <set>
-            <if test="Product.name != null and Product.name != ''">
-                name = #{Product.name},
-            </if>               
-            <if test="Product.price != null">
-                price = #{Product.price},
-            </if>
-            <if test="Product.stock != null">
-                stock = #{Product.stock},
-            </if>
-            <if test="Product.status != null">
-                status = #{Product.status},
-            </if>
-            <if test="Product.image != null and Product.image != ''">
-                image = #{Product.image},
-            </if>
-            <if test="Product.categoryId != null">
-                category_id = #{Product.categoryId},
-            </if>
-            update_time = NOW()
-        </set>
+        SET category_id  = #{Product.categoryId},
+            name         = #{Product.name},
+            price        = #{Product.price},
+            stock        = #{Product.stock},
+            description  = #{Product.description},
+            image        = #{Product.image},
+            status       = 0,
+            audit_status = 0,
+            update_time  = NOW()
         WHERE id = #{Product.id}
+          AND merchant_id = #{Product.merchantId}
+    </update>
+
+    <delete id="deleteMerchantProduct">
+        DELETE FROM product
+        WHERE id = #{id}
+          AND merchant_id = #{merchantId}
+    </delete>
+
+    <!-- 上架/下架：只能操作自己且审核通过的商品 -->
+    <update id="updateProductStatus">
+        UPDATE product
+        SET status      = #{status},
+            shelve_time = CASE WHEN #{status} = 1 THEN NOW() ELSE shelve_time END,
+            update_time = NOW()
+        WHERE id = #{id}
+          AND merchant_id = #{merchantId}
+          AND audit_status = 1
+    </update>
+
+    <!-- ==================== 管理端（商品审核） ==================== -->
+
+    <select id="selectAuditProductPage" resultType="com.mitsuha754.ecommerce.vo.MerchantProductVO">
+        SELECT p.id            AS id,
+               p.merchant_id   AS merchantId,
+               m.shop_name     AS shopName,
+               u.username      AS userName,
+               p.category_id   AS categoryId,
+               c.name          AS categoryName,
+               p.name          AS name,
+               p.price         AS price,
+               p.stock         AS stock,
+               p.image         AS image,
+               p.description   AS description,
+               p.status        AS status,
+               p.audit_status  AS auditStatus,
+               p.create_time   AS createTime,
+               p.update_time   AS updateTime
+        FROM product p
+                 LEFT JOIN merchant m ON m.user_id = p.merchant_id
+                 LEFT JOIN user u ON u.id = p.merchant_id
+                 LEFT JOIN category c ON c.id = p.category_id
+        <where>
+            <if test="query.auditStatus != null">
+                AND p.audit_status = #{query.auditStatus}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND p.name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+        </where>
+        ORDER BY p.audit_status ASC, p.create_time DESC, p.id DESC
+        <if test="query.page != null and query.size != null">
+            LIMIT #{query.page}, #{query.size}
+        </if>
+    </select>
+
+    <select id="selectAuditProductCount" resultType="long">
+        SELECT COUNT(*)
+        FROM product p
+        <where>
+            <if test="query.auditStatus != null">
+                AND p.audit_status = #{query.auditStatus}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND p.name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+        </where>
+    </select>
+
+    <!-- 审核商品：通过 → 上架；驳回 → 下架 -->
+    <update id="updateAuditStatus">
+        UPDATE product
+        SET audit_status = #{auditStatus},
+            status       = #{status},
+            shelve_time  = CASE WHEN #{status} = 1 THEN NOW() ELSE shelve_time END,
+            update_time  = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateMerchantProductOffShelf">
+        UPDATE product
+        SET status      = 0,
+            update_time = NOW()
+        WHERE merchant_id = #{merchantId}
+          AND status = 1
     </update>
 
 </mapper>

@@ -47,6 +47,7 @@
         p.image AS productImage,
         p.price AS price,
         p.name AS productName,
+        p.merchant_id AS merchantId,
         p.price * c.quantity AS totalPrice
 
         FROM cart c

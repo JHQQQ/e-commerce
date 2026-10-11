@@ -32,4 +32,11 @@ public interface CategoryMapper {
      */
     String selectCategoryNameById(@Param("id") Long id);
 
+    /**
+     * 校验分类是否存在且未被删除（商家上架商品时使用）
+     *
+     * @return 1 可用 / 0 不存在或已删除
+     */
+    int countEnabledCategoryById(@Param("id") Long id);
+
 }

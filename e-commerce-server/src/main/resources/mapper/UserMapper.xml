@@ -40,4 +40,72 @@
 
     </select>
 
+    <select id="checkUserId" resultType="java.lang.Integer">
+        SELECT id
+        FROM user
+        WHERE username=#{userName}
+    </select>
+
+    <update id="updateRole">
+        UPDATE user
+        SET role        = #{role},
+            update_time = NOW()
+        WHERE id = #{userId}
+    </update>
+
+    <!-- ==================== 用户中心 ==================== -->
+
+    <select id="getProfile" resultType="com.mitsuha754.ecommerce.vo.UserProfileVO">
+        SELECT id,
+               username      AS userName,
+               name,
+               phone,
+               email,
+               address,
+               balance,
+               role,
+               status,
+               register_time AS createTime
+        FROM user
+        WHERE username = #{userName}
+    </select>
+
+    <update id="updateProfile">
+        UPDATE user
+        SET name        = #{dto.name},
+            phone       = #{dto.phone},
+            email       = #{dto.email},
+            address     = #{dto.address},
+            update_time = NOW()
+        WHERE username = #{userName}
+    </update>
+
+    <select id="getPasswordByName" resultType="java.lang.String">
+        SELECT password
+        FROM user
+        WHERE username = #{userName}
+    </select>
+
+    <update id="updatePassword">
+        UPDATE user
+        SET password    = #{password},
+            update_time = NOW()
+        WHERE username = #{userName}
+    </update>
+
+    <update id="deactivate">
+        UPDATE user
+        SET status      = 0,
+            update_time = NOW()
+        WHERE username = #{userName}
+    </update>
+
+    <!-- 商家结算打款：余额累加 -->
+    <update id="addBalance">
+        UPDATE user
+        SET balance     = balance + #{amount},
+            update_time = NOW()
+        WHERE id = #{userId}
+    </update>
+
 </mapper>

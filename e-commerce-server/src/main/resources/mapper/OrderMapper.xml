@@ -79,15 +79,44 @@
         WHERE o.order_no = #{orderNo};
     </update>
 
+    <!-- 确认收货：2(已发货) → 3(已完成)。
+         带 status=2 条件是为了让「确认收货」在并发/重复提交下只有一个请求能成功，
+         从而保证后面的商家结算不会重复打款。 -->
     <update id="receiveOrder">
         UPDATE `order`
-        SET status=3
+        SET status      = 3,
+            finish_time = NOW(),
+            update_time = NOW()
         WHERE order_no = #{orderNo}
+          AND status = 2
+    </update>
+
+    <!-- ==================== 商家结算（打款） ==================== -->
+
+    <!-- 该订单中每个商家应得的货款：按 order_item → product.merchant_id 汇总 -->
+    <select id="selectSettlementByOrder" resultType="com.mitsuha754.ecommerce.vo.MerchantSettleVO">
+        SELECT p.merchant_id       AS merchantId,
+               SUM(oi.total_amount) AS amount
+        FROM order_item oi
+                 INNER JOIN product p ON p.id = oi.product_id
+        WHERE oi.order_no = #{orderNo}
+          AND p.merchant_id IS NOT NULL
+        GROUP BY p.merchant_id
+    </select>
+
+    <!-- 标记已结算：只对未结算的订单生效（幂等，防重复打款） -->
+    <update id="markSettled">
+        UPDATE `order`
+        SET settle_time = NOW(),
+            update_time = NOW()
+        WHERE order_no = #{orderNo}
+          AND settle_time IS NULL
     </update>
 
     <select id="getOrderConfirm" resultType="com.mitsuha754.ecommerce.vo.OrderConfirmVO">
         SELECT
             c.product_id AS productId,
+            p.merchant_id AS merchantId,
             p.name AS productName,
             p.image AS image,
             p.price AS price,
@@ -96,7 +125,7 @@
         FROM cart c
         INNER JOIN product p
         ON c.product_id = p.id
-        WHERE c.username = #{userName} AND c.status=1 AND p.status=1
+        WHERE c.username = #{userName} AND c.status=1 AND p.status=1 AND p.audit_status = 1
     </select>
 
     <select id="getOrders" resultType="com.mitsuha754.ecommerce.entity.Order">
@@ -148,6 +177,40 @@
         SELECT COUNT(*) = 1
         FROM `order`
         WHERE order_no=#{userPayDTO.orderNo} AND status = 2 AND user_name=#{userPayDTO.userName}
+    </select>
+
+    <!-- ==================== 商家端订单管理 ==================== -->
+
+    <!-- 包含本店商品的订单；金额/件数只统计本店商品 -->
+    <select id="selectMerchantOrders" resultType="com.mitsuha754.ecommerce.vo.MerchantOrderVO">
+        SELECT o.order_no            AS orderNo,
+               o.user_name           AS buyerName,
+               SUM(oi.total_amount)  AS myAmount,
+               SUM(oi.quantity)      AS itemCount,
+               o.status              AS orderStatus,
+               o.address             AS address,
+               o.remark              AS remark,
+               o.create_time         AS createTime,
+               o.deliver_time        AS deliverTime,
+               o.settle_time         AS settleTime
+        FROM `order` o
+                 INNER JOIN order_item oi ON oi.order_no = o.order_no
+                 INNER JOIN product p ON p.id = oi.product_id
+        WHERE p.merchant_id = #{merchantId}
+        <if test="status != null">
+            AND o.status = #{status}
+        </if>
+        GROUP BY o.order_no, o.user_name, o.status, o.address,
+                 o.remark, o.create_time, o.deliver_time, o.settle_time
+        ORDER BY o.create_time DESC, o.order_no DESC
+    </select>
+
+    <select id="countMerchantOrderItems" resultType="int">
+        SELECT COUNT(*)
+        FROM order_item oi
+                 INNER JOIN product p ON p.id = oi.product_id
+        WHERE oi.order_no = #{orderNo}
+          AND p.merchant_id = #{merchantId}
     </select>
 
 

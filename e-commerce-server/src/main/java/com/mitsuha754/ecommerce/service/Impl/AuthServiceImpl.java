@@ -11,6 +11,7 @@ import com.mitsuha754.ecommerce.interceptor.LoginInterceptor;
 import com.mitsuha754.ecommerce.mapper.AuthMapper;
 import com.mitsuha754.ecommerce.dto.RegisterDTO;
 import com.mitsuha754.ecommerce.entity.User;
+import com.mitsuha754.ecommerce.mapper.UserMapper;
 import com.mitsuha754.ecommerce.vo.UserLoginVO;
 import com.mitsuha754.ecommerce.service.AuthService;
 import com.mitsuha754.ecommerce.util.LoginUtil;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
 import cn.hutool.captcha.*;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -39,6 +41,9 @@ import java.util.concurrent.TimeUnit;
 public class AuthServiceImpl implements AuthService {
     @Resource
     private AuthMapper authMapper;
+
+    @Resource
+    private UserMapper userMapper;
 
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
@@ -218,6 +223,21 @@ public class AuthServiceImpl implements AuthService {
 
     }
 
+    /**
+     * 安全删除验证码：verify 可能为 null（例如首次登录无需验证码时前端不传该字段），
+     * 而 RedisTemplate.delete(null) 会抛 IllegalArgumentException，故先做判空。
+     */
+    private void deleteCaptchaQuietly(String verify) {
+        if (!StringUtils.hasText(verify)) {
+            return;
+        }
+        try {
+            redisTemplate.delete(verify);
+        } catch (Exception e) {
+            log.warn("删除验证码失败: {}", verify);
+        }
+    }
+
     @Override
     public LoginInnerDTO login(LoginDTO loginDTO) {
 
@@ -255,7 +275,7 @@ public class AuthServiceImpl implements AuthService {
             //根据不同异常打印信息,重置验证码
         }catch (BusinessException e){
             recordFail(userName);
-            redisTemplate.delete(loginDTO.getVerify());
+            deleteCaptchaQuietly(loginDTO.getVerify());
             throw new BusinessException(e.getMessage());
 
         }catch (Exception e){
@@ -271,13 +291,15 @@ public class AuthServiceImpl implements AuthService {
         UserLoginVO userLoginVO = new UserLoginVO();
 
         userLoginVO.setUserName(user.getUserName());
+        userLoginVO.setUserId(user.getId());
         userLoginVO.setRole(user.getRole());
 
-        // 把用户信息放到 JWT 里
+        // 把用户信息放到map后存到 JWT 里
         Map<String, Object> map = new HashMap<>();
+        map.put("id", user.getId());
         map.put("userName", userLoginVO.getUserName());
         map.put("role", userLoginVO.getRole());
-
+        //创建无状态token，保存上方信息
         String accessToken = loginUtil.createToken(map);
 
         userLoginVO.setAccessToken(accessToken);
@@ -304,10 +326,11 @@ public class AuthServiceImpl implements AuthService {
             // Redis 不可用：本次无法记住登录，但不阻断正常登录
             log.error("记住登录写入Redis失败（不影响本次登录）", e);
         }
-        log.info("{}登录, 身份:{}", userLoginVO.getUserName(), userLoginVO.getRole());
-        redisTemplate.delete(loginDTO.getVerify());
+        log.info("{}登录, 身份:{}", userLoginVO.getUserId(), userLoginVO.getRole());
+        deleteCaptchaQuietly(loginDTO.getVerify());
 
         loginInnerDTO.setUserLoginVO(userLoginVO);
+
         return loginInnerDTO;
     }
 
@@ -328,40 +351,58 @@ public class AuthServiceImpl implements AuthService {
         String flag = BCrypt.hashpw(registerDTO.getPassword(), BCrypt.gensalt());    //加密存到数据库
         authMapper.register(registerDTO.getUserName(), flag);
         log.info("{}注册", registerDTO.getUserName());
-        redisTemplate.delete(registerDTO.getVerify());
+        deleteCaptchaQuietly(registerDTO.getVerify());
     }
 
     @Override
     public LoginInnerDTO refreshToken(String refreshToken) {
+        // 约定：无法续期时返回「userLoginVO 为 null」的对象，
+        // 由 AuthController 统一转成 code 4001（不能返回 null，否则控制器会 NPE → 500）
         LoginInnerDTO loginInnerDTO = new LoginInnerDTO();
         UserLoginVO userVO = new UserLoginVO();
+
         Long expire = redisTemplate.getExpire(refreshToken);
-        //过期时间>0并且存在（getExpire 为 null 表示 key 不存在或 Redis 异常）
-        if (expire > 0){
-            Object obj = redisTemplate.opsForValue().get(refreshToken);
-            //检查Redis获取的东西
-            if (obj != null){
-                @SuppressWarnings("unchecked")
-                Map<String,String> redisMap = (Map<String,String>) obj;
-
-                User user = authMapper.login((redisMap.get("userName")));
-
-                userVO.setUserName(user.getUserName());
-                userVO.setRole(user.getRole());
-
-                Map<String, Object> map = new HashMap<>();
-                map.put("userName", user.getUserName());
-                map.put("role", user.getRole());
-                //创建新的accessToken实现续期
-                String newAccessToken = loginUtil.createToken(map);
-                userVO.setAccessToken(newAccessToken);
-                log.info("{}通过token直接登录, 身份:{}, token:{}", userVO.getUserName(),userVO.getRole(),userVO.getAccessToken());
-            }else {
-                return null;
-            }
-        }else{
-            return null;
+        // 过期时间>0并且存在（getExpire 为 null 表示 key 不存在或 Redis 异常）
+        if (expire == null || expire <= 0) {
+            return loginInnerDTO;
         }
+
+        Object obj = redisTemplate.opsForValue().get(refreshToken);
+        if (obj == null) {
+            return loginInnerDTO;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> redisMap = (HashMap<String, String>) obj;
+        String userName = redisMap.get("userName");
+
+        // 获取登录的信息
+        User user = authMapper.login(userName);
+
+        // 账号不存在 / 已注销(status=0) / 已禁用(status=2) → 拒绝续期并清掉凭证
+        if (user == null || user.getStatus() != 1) {
+            log.info("账号[{}]状态不可用，拒绝续期", userName);
+            try {
+                redisTemplate.delete(refreshToken);
+            } catch (Exception e) {
+                log.warn("清理无效 refreshToken 失败: {}", refreshToken);
+            }
+            return loginInnerDTO;
+        }
+
+        userVO.setUserName(user.getUserName());
+        userVO.setUserId(user.getId());
+        userVO.setRole(user.getRole());
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", user.getId());
+        map.put("userName", user.getUserName());
+        map.put("role", user.getRole());
+        //创建新的accessToken实现续期
+        String newAccessToken = loginUtil.createToken(map);
+        userVO.setAccessToken(newAccessToken);
+        log.info("{}通过token直接登录, 身份:{}", userVO.getUserName(), userVO.getRole());
+
         loginInnerDTO.setUserLoginVO(userVO);
         return loginInnerDTO;
     }
@@ -372,7 +413,7 @@ public class AuthServiceImpl implements AuthService {
             redisTemplate.delete(refreshToken);
         } catch (Exception e) {
             // Redis 不可用时，退出登录不阻断（cookie 仍会被清除）
-            log.error("退出登录删除Redis token失败", e);
+            log.error("退出登录删除Redis token失效", e);
         }
     }
 

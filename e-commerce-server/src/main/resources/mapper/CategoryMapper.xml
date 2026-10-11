@@ -46,4 +46,8 @@
         SELECT name FROM category WHERE id=#{id}
     </select>
 
+    <select id="countEnabledCategoryById" resultType="int">
+        SELECT COUNT(*) FROM category WHERE id = #{id} AND status = 1
+    </select>
+
 </mapper>

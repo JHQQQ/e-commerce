@@ -18,5 +18,11 @@ public interface OrderItemMapper {
      */
     List<OrderItem> getOrderItems(@Param("OrderNo")String orderNo);
 
+    /**
+     * 商家端订单详情：只返回属于该商家的商品明细
+     */
+    List<OrderItem> selectMerchantOrderItems(@Param("orderNo") String orderNo,
+                                             @Param("merchantId") Long merchantId);
+
 
 }

@@ -37,10 +37,20 @@
                user_name AS userName,
                total_amount AS totalPrice,
                status AS orderStatus,
+               address AS address,
                remark AS remark,
-               create_time AS createTime
+               create_time AS createTime,
+               settle_time AS settleTime
         FROM `order`
-        WHERE status IN (1, 2)
+        <where>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="status == null">
+                AND status IN (1, 2)
+            </if>
+        </where>
+        ORDER BY create_time DESC
     </select>
 
     <!-- 修改用户状态 + 余额（给前端修改用）-->
@@ -69,13 +79,5 @@
             update_time = NOW()
         where id = #{id}
     </update>
-
-    <update id="confirmMerchant">
-     update merchant
-     set
-         status = 1
-     where user_id = #{id}
-    </update>
-
 
 </mapper>
