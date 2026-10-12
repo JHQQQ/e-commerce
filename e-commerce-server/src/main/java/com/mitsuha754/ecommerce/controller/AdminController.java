@@ -18,6 +18,7 @@ import com.mitsuha754.ecommerce.vo.UserQueryVO;
 
 import jakarta.annotation.Resource;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import org.springframework.web.bind.annotation.*;
 
@@ -57,7 +58,7 @@ public class AdminController {
     }
 
     @PostMapping("/user/updateBalance")
-    public R<Boolean> updateBalance(@RequestBody User user) {
+    public R<Boolean> updateBalance(@RequestBody @Valid User user) {
         adminService.updateUserBalance(user.getId(), user.getBalance());
         return R.ok(true);
     }

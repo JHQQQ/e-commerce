@@ -47,7 +47,7 @@ public class LoginUtil {
     // 生成 refreshToken
     public  String generateRefreshToken(){
         UUID uuid = UUID.randomUUID();
-        return uuid
+        return "refreshToken:"+uuid
                 .toString()
                 .replace("-","");
     }

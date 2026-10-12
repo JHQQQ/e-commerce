@@ -28,4 +28,9 @@ public interface CartMapper {
      */
     void deleteCart(@Param("userName")String userName);
 
+    /**
+     * 检测添加的购物车商品数量是否大于库存
+     */
+    Boolean isStockEnough(@Param("Cart")CartDTO cartDTO);
+
 }

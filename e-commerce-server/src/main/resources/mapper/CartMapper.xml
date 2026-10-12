@@ -56,4 +56,10 @@
         WHERE c.username = #{userName}
     </select>
 
+    <select id="isStockEnough" resultType="java.lang.Boolean">
+        SELECT p.stock - #{Cart.quantity} - c.quantity > 0
+        FROM cart c JOIN product p on p.id = product_id
+        WHERE c.username = #{Cart.userName} and c.product_id = #{Cart.productId}
+    </select>
+
 </mapper >

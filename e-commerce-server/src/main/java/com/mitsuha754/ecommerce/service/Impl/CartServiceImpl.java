@@ -33,6 +33,11 @@ public class CartServiceImpl implements CartService {
         if (!Objects.equals(product.getStatus(), 1) || !Objects.equals(product.getAuditStatus(), 1)) {
             throw new BusinessException("商品已下架或未通过审核");
         }
+        Boolean enough = cartMapper.isStockEnough(cartDTO);
+        //如果为null，代表用户还没添加过购物车，可以放行。如果不为null且商品库存<购物车已有的数量+新增的数量,代表购物车数量过多
+        if (enough != null && enough.equals(Boolean.FALSE)) {
+            throw new BusinessException("添加购物车数量不得大于库存");
+        }
 
         // 商家（与用户端同一账号）不能购买自己店铺的商品
         UserLoginVO me = LoginInterceptor.requireCurrentUser();

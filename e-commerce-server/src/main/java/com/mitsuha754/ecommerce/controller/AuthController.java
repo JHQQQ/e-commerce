@@ -111,8 +111,8 @@ public class AuthController {
         return R.ok("退出成功");
     }
 
-    @GetMapping("/getCaptchaCode")
-    public R<Map<String,String>> getCode(){
-        return R.ok(authService.getCode());
+    @GetMapping("/getCaptchaCode/{verify}")
+    public R<Map<String,String>> getCode(@PathVariable String verify){
+        return R.ok(authService.getCode(verify));
     }
 }

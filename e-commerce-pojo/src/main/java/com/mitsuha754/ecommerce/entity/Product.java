@@ -1,5 +1,6 @@
 package com.mitsuha754.ecommerce.entity;
 
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -30,16 +31,22 @@ public class Product {
     /**
      * 商品名称
      */
+    @Size(min = 1, max = 10, message = "商品名称应该在1-10字")
     private String name;
 
-    /**
-     * 商品价格
-     */
+    /** 商品价格 */
+    @DecimalMin(value = "0", message = "商品价格不能小于0")
+    @DecimalMax(value = "10000", message = "商品价格不能大于10000")
+    @Digits(integer = 5, fraction = 2, message = "价格最多保留2位小数，整数部分最多5位")
+    @NotNull
     private BigDecimal price;
 
     /**
      * 库存数量
      */
+    @Max(value = 1000,message = "库存应小于1000")
+    @Min(value = 0, message = "库存应大于0")
+    @NotNull
     private Integer stock;
 
     /**
@@ -50,6 +57,7 @@ public class Product {
     /**
      * 商品描述
      */
+    @Size(max = 20, message = "简介字数应在1-20之间")
     private String description;
 
     /**

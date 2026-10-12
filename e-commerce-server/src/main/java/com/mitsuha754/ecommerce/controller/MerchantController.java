@@ -105,7 +105,7 @@ public class MerchantController {
      */
     @MerchantOnly
     @PostMapping("/product/add")
-    public R<?> addProduct(@RequestBody Product product) {
+    public R<?> addProduct(@RequestBody @Valid Product product) {
         Long merchantId = merchantService.requireApprovedMerchantId();
         productService.addMerchantProduct(product, merchantId);
         return R.ok("商品已提交，等待管理员审核");
@@ -116,7 +116,7 @@ public class MerchantController {
      */
     @MerchantOnly
     @PostMapping("/product/update")
-    public R<?> updateProduct(@RequestBody Product product) {
+    public R<?> updateProduct(@RequestBody @Valid Product product) {
         Long merchantId = merchantService.requireApprovedMerchantId();
         productService.updateMerchantProduct(product, merchantId);
         return R.ok("商品已修改，需重新审核");

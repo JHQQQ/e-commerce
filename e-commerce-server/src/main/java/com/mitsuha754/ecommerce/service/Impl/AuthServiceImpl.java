@@ -418,7 +418,10 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Map<String, String> getCode() {
+    public Map<String, String> getCode(String oldVerify) {
+        if (oldVerify != null) {
+            redisTemplate.delete(oldVerify);
+        }
         LineCaptcha lineCaptcha = CaptchaUtil.
                 createLineCaptcha(200, 50, 4, 10);
         //存储在Redis的ID

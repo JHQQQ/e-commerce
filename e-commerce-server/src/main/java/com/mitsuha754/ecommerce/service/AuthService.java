@@ -35,5 +35,5 @@ public interface AuthService {
     /**
      * 生成验证码
      */
-    Map<String, String> getCode();
+    Map<String, String> getCode(String oldVerify);
 }
